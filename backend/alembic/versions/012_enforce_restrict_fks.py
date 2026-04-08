@@ -79,29 +79,8 @@ def upgrade() -> None:
         ondelete="RESTRICT",
     )
 
-    # call_notes_files.document_id -> documents.id ON DELETE RESTRICT
-    _drop_fk_if_exists("call_notes_files", "document_id")
-    op.create_foreign_key(
-        "fk_call_notes_files_document_id_documents",
-        "call_notes_files",
-        "documents",
-        ["document_id"],
-        ["id"],
-        ondelete="RESTRICT",
-    )
-
 
 def downgrade() -> None:
-    op.drop_constraint("fk_call_notes_files_document_id_documents", "call_notes_files", type_="foreignkey")
-    op.create_foreign_key(
-        "fk_call_notes_files_document_id_documents",
-        "call_notes_files",
-        "documents",
-        ["document_id"],
-        ["id"],
-        ondelete="CASCADE",
-    )
-
     op.drop_constraint("fk_call_notes_files_daily_call_id_daily_calls", "call_notes_files", type_="foreignkey")
     op.create_foreign_key(
         "fk_call_notes_files_daily_call_id_daily_calls",
