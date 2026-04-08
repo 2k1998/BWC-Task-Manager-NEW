@@ -1,0 +1,180 @@
+{
+  "Common": {
+    "save": "Αποθήκευση",
+    "cancel": "Ακύρωση",
+    "delete": "Διαγραφή",
+    "edit": "Επεξεργασία",
+    "submit": "Υποβολή",
+    "close": "Κλείσιμο",
+    "loading": "Φόρτωση",
+    "error": "Σφάλμα",
+    "success": "Επιτυχία",
+    "search": "Αναζήτηση",
+    "filter": "Φίλτρο",
+    "clearAll": "Καθαρισμός Όλων",
+    "yes": "Ναι",
+    "no": "Όχι",
+    "confirm": "Επιβεβαίωση",
+    "back": "Πίσω",
+    "actions": "Ενέργειες",
+    "tryAgain": "Δοκιμάστε ξανά",
+    "logout": "Αποσύνδεση"
+  },
+  "Auth": {
+    "login": "Σύνδεση",
+    "email": "Email",
+    "password": "Κωδικός",
+    "signIn": "Είσοδος",
+    "invalidCredentials": "Μη έγκυρα στοιχεία σύνδεσης"
+  },
+  "Navigation": {
+    "dashboard": "Πίνακας",
+    "tasks": "Εργασίες",
+    "projects": "Έργα",
+    "companies": "Εταιρείες",
+    "contacts": "Επαφές",
+    "dailyCalls": "Ημερήσιες Κλήσεις",
+    "payments": "Πληρωμές",
+    "cars": "Οχήματα",
+    "chat": "Συνομιλία",
+    "analytics": "Αναλύσεις",
+    "admin": "Διαχείριση",
+    "documents": "Έγγραφα",
+    "notifications": "Ειδοποιήσεις",
+    "profile": "Προφίλ",
+    "logout": "Αποσύνδεση",
+    "users": "Χρήστες",
+    "events": "Συμβάντα"
+  },
+  "Dashboard": {
+    "welcomeBack": "Καλώς ήρθες ξανά",
+    "recentTasks": "Πρόσφατες Εργασίες",
+    "myTasks": "Οι Εργασίες Μου",
+    "overdue": "Εκπρόθεσμες",
+    "pendingApprovals": "Εκκρεμείς Εγκρίσεις",
+    "quickStats": "Γρήγορα Στατιστικά"
+  },
+  "Tasks": {
+    "newTask": "Νέα Εργασία",
+    "taskTitle": "Τίτλος Εργασίας",
+    "description": "Περιγραφή",
+    "assignedTo": "Ανάθεση Σε",
+    "dueDate": "Ημερομηνία Λήξης",
+    "status": "Κατάσταση",
+    "urgency": "Επείγον",
+    "company": "Εταιρεία",
+    "team": "Ομάδα",
+    "allStatuses": "Όλες οι Καταστάσεις",
+    "allUrgencies": "Όλα τα Επίπεδα Επείγοντος",
+    "allUsers": "Όλοι οι Χρήστες",
+    "allCompanies": "Όλες οι Εταιρείες",
+    "allTeams": "Όλες οι Ομάδες",
+    "filters": "Φίλτρα",
+    "noTasksFound": "Δεν βρέθηκαν εργασίες",
+    "createTask": "Δημιουργία Εργασίας",
+    "editTask": "Επεξεργασία Εργασίας",
+    "deleteTask": "Διαγραφή Εργασίας",
+    "transferTask": "Μεταφορά Εργασίας",
+    "comments": "Σχόλια",
+    "noCommentsYet": "Δεν υπάρχουν σχόλια ακόμα",
+    "writeAComment": "Γράψτε σχόλιο",
+    "postComment": "Ανάρτηση Σχολίου",
+    "urgentImportant": "Επείγον & Σημαντικό",
+    "urgent": "Επείγον",
+    "important": "Σημαντικό",
+    "notUrgentNotImportant": "Μη Επείγον & Μη Σημαντικό",
+    "byEndOfDay": "Μέχρι το τέλος της ημέρας",
+    "new": "Νέα",
+    "received": "Παραλήφθηκε",
+    "onProcess": "Σε Επεξεργασία",
+    "pending": "Εκκρεμεί",
+    "looseEnd": "Ανοιχτή Εκκρεμότητα",
+    "completed": "Ολοκληρωμένη"
+  },
+  "Contacts": {
+    "newContact": "Νέα Επαφή",
+    "importCsv": "Εισαγωγή CSV",
+    "fullName": "Ονοματεπώνυμο",
+    "phone": "Τηλέφωνο",
+    "email": "Email",
+    "company": "Εταιρεία",
+    "notes": "Σημειώσεις",
+    "noContactsFound": "Δεν βρέθηκαν επαφές"
+  },
+  "DailyCalls": {
+    "newCall": "Νέα Κλήση",
+    "callNotes": "Σημειώσεις Κλήσης",
+    "noCallsFound": "Δεν βρέθηκαν κλήσεις"
+  },
+  "Payments": {
+    "newPayment": "Νέα Πληρωμή",
+    "amount": "Ποσό",
+    "type": "Τύπος",
+    "category": "Κατηγορία",
+    "income": "Έσοδο",
+    "expense": "Έξοδο",
+    "allPayments": "Όλες οι Πληρωμές",
+    "summary": "Σύνοψη",
+    "noPaymentsFound": "Δεν βρέθηκαν πληρωμές"
+  },
+  "Cars": {
+    "newCar": "Νέο Όχημα",
+    "plate": "Πινακίδα",
+    "model": "Μοντέλο",
+    "brand": "Μάρκα",
+    "maintenance": "Συντήρηση",
+    "income": "Έσοδο",
+    "expense": "Έξοδο",
+    "fleet": "Στόλος",
+    "noCarsFound": "Δεν βρέθηκαν οχήματα"
+  },
+  "Chat": {
+    "newMessage": "Νέο Μήνυμα",
+    "send": "Αποστολή",
+    "noConversationsYet": "Δεν υπάρχουν συνομιλίες ακόμα",
+    "online": "Συνδεδεμένος",
+    "offline": "Εκτός Σύνδεσης"
+  },
+  "Analytics": {
+    "overview": "Επισκόπηση",
+    "tasksPerCompany": "Εργασίες ανά Εταιρεία",
+    "tasksPerUser": "Εργασίες ανά Χρήστη",
+    "completedTasks": "Ολοκληρωμένες Εργασίες",
+    "activeTasks": "Ενεργές Εργασίες",
+    "totalTasks": "Συνολικές Εργασίες"
+  },
+  "Admin": {
+    "users": "Χρήστες",
+    "teams": "Ομάδες",
+    "departments": "Τμήματα",
+    "activityLogs": "Αρχεία Δραστηριότητας",
+    "newUser": "Νέος Χρήστης",
+    "resetPassword": "Επαναφορά Κωδικού",
+    "deactivate": "Απενεργοποίηση",
+    "permissions": "Δικαιώματα"
+  },
+  "Notifications": {
+    "markAllRead": "Σήμανση όλων ως αναγνωσμένα",
+    "noNotifications": "Δεν υπάρχουν ειδοποιήσεις",
+    "newNotification": "Νέα ειδοποίηση"
+  },
+  "Profile": {
+    "editProfile": "Επεξεργασία Προφίλ",
+    "changePhoto": "Αλλαγή Φωτογραφίας",
+    "language": "Γλώσσα",
+    "english": "Αγγλικά",
+    "greek": "Ελληνικά",
+    "saveChanges": "Αποθήκευση Αλλαγών"
+  },
+  "Approvals": {
+    "approve": "Έγκριση",
+    "deny": "Απόρριψη",
+    "pendingApprovals": "Εκκρεμείς Εγκρίσεις",
+    "approved": "Εγκρίθηκε",
+    "denied": "Απορρίφθηκε"
+  },
+  "Companies": {
+    "newCompany": "Νέα Εταιρεία",
+    "noCompaniesFound": "Δεν βρέθηκαν εταιρείες"
+  }
+}

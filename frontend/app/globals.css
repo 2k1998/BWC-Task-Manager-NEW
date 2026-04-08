@@ -1,0 +1,31 @@
+@import "tailwindcss";
+@config "../tailwind.config.ts";
+
+:root {
+  /* Brand: #D1AE62 gold, #000000 black, #342C19 brown, #D9D9D9 silver */
+  --background: #ffffff;
+  --foreground: #000000;
+  --brand-gold: #d1ae62;
+  --brand-black: #000000;
+  --brand-brown: #342c19;
+  --brand-silver: #d9d9d9;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-brand-gold: var(--brand-gold);
+  --color-brand-black: var(--brand-black);
+  --color-brand-brown: var(--brand-brown);
+  --color-brand-silver: var(--brand-silver);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+  min-width: 320px;
+  overflow-x: auto;
+}

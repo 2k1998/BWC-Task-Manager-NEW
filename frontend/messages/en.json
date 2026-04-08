@@ -1,0 +1,180 @@
+{
+  "Common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "submit": "Submit",
+    "close": "Close",
+    "loading": "Loading",
+    "error": "Error",
+    "success": "Success",
+    "search": "Search",
+    "filter": "Filter",
+    "clearAll": "Clear All",
+    "yes": "Yes",
+    "no": "No",
+    "confirm": "Confirm",
+    "back": "Back",
+    "actions": "Actions",
+    "tryAgain": "Try Again",
+    "logout": "Logout"
+  },
+  "Auth": {
+    "login": "Login",
+    "email": "Email",
+    "password": "Password",
+    "signIn": "Sign In",
+    "invalidCredentials": "Invalid credentials"
+  },
+  "Navigation": {
+    "dashboard": "Dashboard",
+    "tasks": "Tasks",
+    "projects": "Projects",
+    "companies": "Companies",
+    "contacts": "Contacts",
+    "dailyCalls": "Daily Calls",
+    "payments": "Payments",
+    "cars": "Cars",
+    "chat": "Chat",
+    "analytics": "Analytics",
+    "admin": "Admin",
+    "documents": "Documents",
+    "notifications": "Notifications",
+    "profile": "Profile",
+    "logout": "Logout",
+    "users": "Users",
+    "events": "Events"
+  },
+  "Dashboard": {
+    "welcomeBack": "Welcome back",
+    "recentTasks": "Recent Tasks",
+    "myTasks": "My Tasks",
+    "overdue": "Overdue",
+    "pendingApprovals": "Pending Approvals",
+    "quickStats": "Quick Stats"
+  },
+  "Tasks": {
+    "newTask": "New Task",
+    "taskTitle": "Task Title",
+    "description": "Description",
+    "assignedTo": "Assigned To",
+    "dueDate": "Due Date",
+    "status": "Status",
+    "urgency": "Urgency",
+    "company": "Company",
+    "team": "Team",
+    "allStatuses": "All Statuses",
+    "allUrgencies": "All Urgencies",
+    "allUsers": "All Users",
+    "allCompanies": "All Companies",
+    "allTeams": "All Teams",
+    "filters": "Filters",
+    "noTasksFound": "No tasks found",
+    "createTask": "Create Task",
+    "editTask": "Edit Task",
+    "deleteTask": "Delete Task",
+    "transferTask": "Transfer Task",
+    "comments": "Comments",
+    "noCommentsYet": "No comments yet",
+    "writeAComment": "Write a comment",
+    "postComment": "Post Comment",
+    "urgentImportant": "Urgent & Important",
+    "urgent": "Urgent",
+    "important": "Important",
+    "notUrgentNotImportant": "Not Urgent & Not Important",
+    "byEndOfDay": "By the end of day",
+    "new": "New",
+    "received": "Received",
+    "onProcess": "On Process",
+    "pending": "Pending",
+    "looseEnd": "Loose End",
+    "completed": "Completed"
+  },
+  "Contacts": {
+    "newContact": "New Contact",
+    "importCsv": "Import CSV",
+    "fullName": "Full Name",
+    "phone": "Phone",
+    "email": "Email",
+    "company": "Company",
+    "notes": "Notes",
+    "noContactsFound": "No contacts found"
+  },
+  "DailyCalls": {
+    "newCall": "New Call",
+    "callNotes": "Call Notes",
+    "noCallsFound": "No calls found"
+  },
+  "Payments": {
+    "newPayment": "New Payment",
+    "amount": "Amount",
+    "type": "Type",
+    "category": "Category",
+    "income": "Income",
+    "expense": "Expense",
+    "allPayments": "All Payments",
+    "summary": "Summary",
+    "noPaymentsFound": "No payments found"
+  },
+  "Cars": {
+    "newCar": "New Car",
+    "plate": "Plate",
+    "model": "Model",
+    "brand": "Brand",
+    "maintenance": "Maintenance",
+    "income": "Income",
+    "expense": "Expense",
+    "fleet": "Fleet",
+    "noCarsFound": "No cars found"
+  },
+  "Chat": {
+    "newMessage": "New Message",
+    "send": "Send",
+    "noConversationsYet": "No conversations yet",
+    "online": "Online",
+    "offline": "Offline"
+  },
+  "Analytics": {
+    "overview": "Overview",
+    "tasksPerCompany": "Tasks per Company",
+    "tasksPerUser": "Tasks per User",
+    "completedTasks": "Completed Tasks",
+    "activeTasks": "Active Tasks",
+    "totalTasks": "Total Tasks"
+  },
+  "Admin": {
+    "users": "Users",
+    "teams": "Teams",
+    "departments": "Departments",
+    "activityLogs": "Activity Logs",
+    "newUser": "New User",
+    "resetPassword": "Reset Password",
+    "deactivate": "Deactivate",
+    "permissions": "Permissions"
+  },
+  "Notifications": {
+    "markAllRead": "Mark all read",
+    "noNotifications": "No notifications",
+    "newNotification": "New notification"
+  },
+  "Profile": {
+    "editProfile": "Edit Profile",
+    "changePhoto": "Change Photo",
+    "language": "Language",
+    "english": "English",
+    "greek": "Greek",
+    "saveChanges": "Save Changes"
+  },
+  "Approvals": {
+    "approve": "Approve",
+    "deny": "Deny",
+    "pendingApprovals": "Pending Approvals",
+    "approved": "Approved",
+    "denied": "Denied"
+  },
+  "Companies": {
+    "newCompany": "New Company",
+    "noCompaniesFound": "No companies found"
+  }
+}
