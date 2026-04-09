@@ -1,9 +1,10 @@
 import axios from 'axios';
 import { toast } from 'sonner';
 import { getAccessToken, logout } from './auth';
+import { getPublicApiBaseUrl } from './apiBase';
 
 const apiClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
+  baseURL: getPublicApiBaseUrl(),
   headers: {
     'Content-Type': 'application/json',
   },

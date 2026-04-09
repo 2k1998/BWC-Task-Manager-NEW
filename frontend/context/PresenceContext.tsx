@@ -2,6 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { getPublicWsBaseUrl } from '@/lib/apiBase';
 import apiClient from '@/lib/apiClient';
 import type { PresenceEntry } from '@/lib/types';
 import { getAccessToken } from '@/lib/auth';
@@ -15,13 +16,6 @@ interface PresenceContextType {
 }
 
 const PresenceContext = createContext<PresenceContextType | undefined>(undefined);
-
-function getWsBaseUrl() {
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-  if (apiBase.startsWith('https://')) return apiBase.replace('https://', 'wss://');
-  if (apiBase.startsWith('http://')) return apiBase.replace('http://', 'ws://');
-  return apiBase;
-}
 
 function asRecord(input: unknown): Record<string, unknown> {
   return typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : {};
@@ -102,8 +96,8 @@ export function PresenceProvider({ children }: { children: React.ReactNode }) {
     try {
       const token = getAccessToken();
       const wsUrl = token
-        ? `${getWsBaseUrl()}/ws/presence?token=${encodeURIComponent(token)}`
-        : `${getWsBaseUrl()}/ws/presence`;
+        ? `${getPublicWsBaseUrl()}/ws/presence?token=${encodeURIComponent(token)}`
+        : `${getPublicWsBaseUrl()}/ws/presence`;
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 

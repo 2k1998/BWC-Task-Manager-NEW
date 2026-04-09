@@ -4,17 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import ProtectedLayout from '@/components/ProtectedLayout';
 import { Badge, Button, EmptyState, ErrorState, Input, LoadingSkeleton } from '@/components/ui';
+import { getPublicWsBaseUrl } from '@/lib/apiBase';
 import apiClient from '@/lib/apiClient';
 import { getAccessToken } from '@/lib/auth';
 import { getErrorMessage } from '@/lib/errorHandler';
 import type { ChatMessage, ChatThread, UserSearchResult } from '@/lib/types';
-
-function getWsBaseUrl() {
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-  if (apiBase.startsWith('https://')) return apiBase.replace('https://', 'wss://');
-  if (apiBase.startsWith('http://')) return apiBase.replace('http://', 'ws://');
-  return apiBase;
-}
 
 function asRecord(input: unknown): Record<string, unknown> {
   return typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : {};
@@ -165,8 +159,8 @@ export default function ChatPage() {
     closeWs();
     const token = getAccessToken();
     const wsUrl = token
-      ? `${getWsBaseUrl()}/ws/chat/${threadId}?token=${encodeURIComponent(token)}`
-      : `${getWsBaseUrl()}/ws/chat/${threadId}`;
+      ? `${getPublicWsBaseUrl()}/ws/chat/${threadId}?token=${encodeURIComponent(token)}`
+      : `${getPublicWsBaseUrl()}/ws/chat/${threadId}`;
 
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
