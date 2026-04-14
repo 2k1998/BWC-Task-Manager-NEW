@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useAuth } from '@/context/AuthContext';
 import apiClient from '@/lib/apiClient';
 import BrandingLogo from '@/components/BrandingLogo';
+import { extractErrorMessage } from '@/lib/utils';
 
 export default function LoginPage() {
   const tAuth = useTranslations('Auth');
@@ -36,7 +37,8 @@ export default function LoginPage() {
       
       router.push('/dashboard');
     } catch (err: any) {
-      setError(err.response?.data?.detail || tAuth('invalidCredentials'));
+      const message = extractErrorMessage(err?.response?.data);
+      setError(message === 'An error occurred' ? tAuth('invalidCredentials') : message);
       setLoading(false);
     }
   };

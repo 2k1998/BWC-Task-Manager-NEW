@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import apiClient from '@/lib/apiClient';
 import { Button } from '@/components/ui';
 import type { Task, TaskDocumentAttachment } from '@/lib/types';
+import { extractErrorMessage } from '@/lib/utils';
 
 interface EditTaskModalProps {
   task: Task;
@@ -139,7 +140,7 @@ export default function EditTaskModal({ task, onClose, onSuccess }: EditTaskModa
       onClose();
     } catch (err: any) {
       const statusCode = err?.response?.status;
-      const detail = err?.response?.data?.detail;
+      const detail = extractErrorMessage(err?.response?.data);
 
       if (statusCode === 400 && detail === 'Completed tasks cannot be edited.') {
         setCompletedBanner('Completed tasks cannot be edited.');

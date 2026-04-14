@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import apiClient from '@/lib/apiClient';
 import { getErrorMessage } from '@/lib/errorHandler';
+import { extractErrorMessage } from '@/lib/utils';
 import { Button } from '@/components/ui';
 
 interface CreateTaskModalProps {
@@ -202,7 +203,8 @@ export default function CreateTaskModal({ onClose, onSuccess }: CreateTaskModalP
       onClose();
     } catch (err: any) {
       console.error(err);
-      toast.error(err.response?.data?.detail || 'Failed to create task');
+      const message = extractErrorMessage(err?.response?.data);
+      toast.error(message === 'An error occurred' ? 'Failed to create task' : message);
     } finally {
       setLoading(false);
       setUploadAttachmentsPhase(false);

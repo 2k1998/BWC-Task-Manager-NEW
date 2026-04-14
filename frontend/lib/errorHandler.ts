@@ -1,4 +1,5 @@
 import { AxiosError } from 'axios';
+import { extractErrorMessage } from './utils';
 
 /**
  * Extract a human-readable message from an Axios error.
@@ -7,13 +8,10 @@ import { AxiosError } from 'axios';
  */
 export function getErrorMessage(error: unknown, fallback = 'An unexpected error occurred.'): string {
   if (error instanceof Error) {
-    const axiosError = error as AxiosError<{ detail?: string }>;
-    if (axiosError.response?.data?.detail) {
-      return axiosError.response.data.detail;
-    }
-    if (axiosError.message) {
-      return axiosError.message;
-    }
+    const axiosError = error as AxiosError<{ detail?: string | Array<{ msg?: string }> }>;
+    const fromResponse = extractErrorMessage(axiosError.response?.data);
+    if (fromResponse !== 'An error occurred') return fromResponse;
+    if (axiosError.message) return axiosError.message;
   }
   return fallback;
 }

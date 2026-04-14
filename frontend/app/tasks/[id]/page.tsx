@@ -14,6 +14,7 @@ import apiClient from '@/lib/apiClient';
 import { getValidNextStatuses, isTerminalStatus } from '@/lib/taskLifecycle';
 import { useAuth } from '@/context/AuthContext';
 import type { Task, User } from '@/lib/types';
+import { extractErrorMessage } from '@/lib/utils';
 
 export default function TaskDetailPage() {
   const params = useParams();
@@ -41,8 +42,10 @@ export default function TaskDetailPage() {
       const response = await apiClient.get<Task>(`/tasks/${params.id}`);
       setTask(response.data);
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to load task');
-      toast.error('Failed to load task');
+      const message = extractErrorMessage(err?.response?.data);
+      const resolved = message === 'An error occurred' ? 'Failed to load task' : message;
+      setError(resolved);
+      toast.error(resolved);
     } finally {
       setLoading(false);
     }
@@ -68,7 +71,8 @@ export default function TaskDetailPage() {
       toast.success('Task status updated successfully');
       await fetchTask();
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || 'Failed to update status');
+      const message = extractErrorMessage(err?.response?.data);
+      toast.error(message === 'An error occurred' ? 'Failed to update status' : message);
     } finally {
       setUpdating(false);
     }

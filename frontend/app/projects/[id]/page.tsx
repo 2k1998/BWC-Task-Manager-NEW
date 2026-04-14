@@ -8,6 +8,7 @@ import { Card, Badge, Button, EmptyState } from '@/components/ui';
 import ActivityTimeline from '@/components/ActivityTimeline';
 import apiClient from '@/lib/apiClient';
 import type { Project } from '@/lib/types';
+import { extractErrorMessage } from '@/lib/utils';
 
 const statusColorMap: Record<string, 'blue' | 'yellow' | 'green' | 'orange' | 'red'> = {
   'Planning': 'blue',
@@ -36,8 +37,10 @@ export default function ProjectDetailPage() {
       const response = await apiClient.get<Project>(`/projects/${params.id}`);
       setProject(response.data);
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to load project');
-      toast.error('Failed to load project');
+      const message = extractErrorMessage(err?.response?.data);
+      const resolved = message === 'An error occurred' ? 'Failed to load project' : message;
+      setError(resolved);
+      toast.error(resolved);
     } finally {
       setLoading(false);
     }
@@ -56,7 +59,8 @@ export default function ProjectDetailPage() {
         setCanEdit(false);
         toast.error('You do not have permission to edit this project');
       } else {
-        toast.error(err.response?.data?.detail || 'Failed to update status');
+        const message = extractErrorMessage(err?.response?.data);
+        toast.error(message === 'An error occurred' ? 'Failed to update status' : message);
       }
     } finally {
       setUpdating(false);

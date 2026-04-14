@@ -9,6 +9,7 @@ import ActivityTimeline from '@/components/ActivityTimeline';
 import apiClient from '@/lib/apiClient';
 import type { Event } from '@/lib/types';
 import { format } from 'date-fns';
+import { extractErrorMessage } from '@/lib/utils';
 
 export default function EventDetailPage() {
   const params = useParams();
@@ -27,8 +28,10 @@ export default function EventDetailPage() {
       const response = await apiClient.get<Event>(`/events/${params.id}`);
       setEvent(response.data);
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to load event');
-      toast.error('Failed to load event');
+      const message = extractErrorMessage(err?.response?.data);
+      const resolved = message === 'An error occurred' ? 'Failed to load event' : message;
+      setError(resolved);
+      toast.error(resolved);
     } finally {
       setLoading(false);
     }

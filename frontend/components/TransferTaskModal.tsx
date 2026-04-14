@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import apiClient from '@/lib/apiClient';
 import type { User } from '@/lib/types';
+import { extractErrorMessage } from '@/lib/utils';
 
 interface TransferTaskModalProps {
   taskId: string;
@@ -43,7 +44,8 @@ export default function TransferTaskModal({
       onSuccess();
       onClose();
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || 'Failed to transfer task');
+      const message = extractErrorMessage(err?.response?.data);
+      toast.error(message === 'An error occurred' ? 'Failed to transfer task' : message);
     } finally {
       setTransferring(false);
     }

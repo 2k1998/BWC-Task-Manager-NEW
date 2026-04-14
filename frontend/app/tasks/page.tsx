@@ -15,6 +15,7 @@ import { useAuth } from '@/context/AuthContext';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { getUrgencyDotColor } from '@/lib/urgencyFilter';
+import { extractErrorMessage } from '@/lib/utils';
 
 type FilterState = {
   status: string | null;
@@ -133,7 +134,7 @@ function TasksPageContent() {
         setLookupsLoading(true);
         const [usersRes, companiesRes, teamsRes] = await Promise.all([
           apiClient.get('/users'),
-          apiClient.get('/companies?page=1&page_size=200'),
+          apiClient.get('/companies'),
           apiClient.get('/teams'),
         ]);
 
@@ -166,7 +167,7 @@ function TasksPageContent() {
       }
     };
     fetchLookups();
-  }, [isFilterPanelOpen, lookupsLoaded, lookupsLoading]);
+  }, [isFilterPanelOpen, lookupsLoaded]);
 
   const fetchTasks = async () => {
     try {
@@ -224,7 +225,8 @@ function TasksPageContent() {
       toast.success(tCommon('success'));
       await fetchTasks();
     } catch (err: any) {
-      const errorMsg = err.response?.data?.detail || tCommon('error');
+      const extracted = extractErrorMessage(err?.response?.data);
+      const errorMsg = extracted === 'An error occurred' ? tCommon('error') : extracted;
       toast.error(errorMsg);
       throw err;
     }

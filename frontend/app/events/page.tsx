@@ -7,6 +7,7 @@ import CreateEventModal from '@/components/modals/CreateEventModal';
 import apiClient from '@/lib/apiClient';
 import type { EventListResponse } from '@/lib/types';
 import { Button, EmptyState, ErrorState, LoadingSkeleton } from '@/components/ui';
+import { extractErrorMessage } from '@/lib/utils';
 
 function EventsPageContent() {
   const [events, setEvents] = useState<EventListResponse | null>(null);
@@ -44,7 +45,8 @@ function EventsPageContent() {
       const response = await apiClient.get<EventListResponse>('/events', { params });
       setEvents(response.data);
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to load events');
+      const message = extractErrorMessage(err?.response?.data);
+      setError(message === 'An error occurred' ? 'Failed to load events' : message);
     } finally {
       setLoading(false);
     }

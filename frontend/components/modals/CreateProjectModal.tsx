@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import apiClient from '@/lib/apiClient';
 import { Button } from '@/components/ui';
+import { extractErrorMessage } from '@/lib/utils';
 
 interface CreateProjectModalProps {
   onClose: () => void;
@@ -139,7 +140,8 @@ export default function CreateProjectModal({ onClose, onSuccess }: CreateProject
       onClose();
     } catch (err: any) {
       console.error(err);
-      toast.error(err.response?.data?.detail || 'Failed to create project');
+      const message = extractErrorMessage(err?.response?.data);
+      toast.error(message === 'An error occurred' ? 'Failed to create project' : message);
     } finally {
       setLoading(false);
     }
