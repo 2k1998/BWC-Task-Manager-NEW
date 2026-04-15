@@ -16,6 +16,18 @@ import { useAuth } from '@/context/AuthContext';
 import type { Task, User } from '@/lib/types';
 import { extractErrorMessage } from '@/lib/utils';
 
+function normalizeStatus(status: string): string {
+  const map: Record<string, string> = {
+    'new': 'New',
+    'received': 'Received',
+    'in_progress': 'In Progress',
+    'in_review': 'In Review',
+    'completed': 'Completed',
+    'cancelled': 'Cancelled',
+  };
+  return map[status?.toLowerCase()] ?? status;
+}
+
 export default function TaskDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -128,8 +140,9 @@ export default function TaskDetailPage() {
     );
   }
 
-  const validNextStatuses = getValidNextStatuses(task.status);
-  const isCompleted = isTerminalStatus(task.status);
+  const normalizedTaskStatus = normalizeStatus(task.status);
+  const validNextStatuses = getValidNextStatuses(normalizedTaskStatus);
+  const isCompleted = isTerminalStatus(normalizedTaskStatus);
   const urgencyLabel = (task as any).urgency_label || task.urgency;
   const canEditOrDelete =
     !!currentUser && (
@@ -213,20 +226,20 @@ export default function TaskDetailPage() {
               <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
               {isCompleted ? (
                 <div className="px-3 py-2 bg-gray-50 rounded-md text-gray-900 font-medium border border-gray-200">
-                  {task.status}
+                  {normalizedTaskStatus}
                 </div>
               ) : (
                 <div>
                   <select
-                    value={task.status}
+                    value={normalizedTaskStatus}
                     onChange={(e) => handleStatusUpdate(e.target.value)}
                     disabled={updating}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md text-base bg-white
                              focus:outline-none focus:ring-2 focus:ring-primary-gold focus:border-transparent
                              disabled:bg-gray-50 disabled:text-gray-500 transition-colors duration-150"
                   >
-                    <option value={task.status} disabled>
-                      {task.status} (current)
+                    <option value={normalizedTaskStatus} disabled>
+                      {normalizedTaskStatus} (current)
                     </option>
                     {validNextStatuses.map((status) => (
                       <option key={status} value={status}>
@@ -314,10 +327,10 @@ export default function TaskDetailPage() {
 
         <TaskAttachmentsSection taskId={task.id} taskOwnerUserId={task.owner_user_id} />
 
-        {task.status !== 'New' && (
+        {normalizedTaskStatus !== 'New' && (
           <div className="mt-6 border-t border-gray-200 pt-6">
             <h3 className="text-sm font-semibold text-gray-700 mb-4">Comments</h3>
-            <TaskComments taskId={task.id} taskStatus={task.status} />
+            <TaskComments taskId={task.id} taskStatus={normalizedTaskStatus} />
           </div>
         )}
       </div>
