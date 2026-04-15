@@ -222,8 +222,8 @@ export default function CreateTaskModal({ onClose, onSuccess }: CreateTaskModalP
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-0 sm:p-4 overflow-y-auto">
-      <div className="bg-white shadow-2xl w-full h-full rounded-none sm:rounded-xl sm:max-w-2xl sm:h-auto flex flex-col sm:max-h-[90vh]">
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto overflow-x-hidden">
+      <div className="bg-white shadow-2xl w-full max-w-2xl mx-auto rounded-xl flex flex-col max-h-[90vh] overflow-y-auto">
         
         {/* Header */}
         <div className="p-4 sm:p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white sm:rounded-t-xl z-10">

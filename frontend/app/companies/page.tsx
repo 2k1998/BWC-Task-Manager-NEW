@@ -175,7 +175,7 @@ export default function CompaniesPage() {
             </div>
             <div className="hidden sm:block overflow-x-auto w-full custom-scrollbar">
               <Table>
-                <table className="w-full text-left border-collapse">
+                <table className="min-w-full w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 text-xs uppercase tracking-wider">
                       <th className="px-6 py-4 font-medium">Name</th>

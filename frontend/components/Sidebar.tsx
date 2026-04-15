@@ -67,7 +67,7 @@ export default function Sidebar({ mobile = false, isOpen = false, onNavigate, on
 
   return (
     <aside
-      className={`relative w-64 bg-black border-r border-brand-silver/20 flex-col flex-shrink-0 transition-all duration-300 ${
+      className={`relative w-64 flex-none bg-black border-r border-brand-silver/20 flex-col flex-shrink-0 transition-all duration-300 ${
         mobile
           ? `fixed inset-y-0 left-0 z-50 flex h-full transform transition-transform duration-300 lg:hidden ${
               isOpen ? 'translate-x-0' : '-translate-x-full'

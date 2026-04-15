@@ -71,9 +71,9 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   const isAdmin = user?.user_type === 'Admin';
 
   return (
-        <div className="flex h-dvh min-h-screen bg-brand-silver/15 overflow-x-hidden">
+        <div className="flex h-dvh min-h-screen max-w-full bg-brand-silver/15 overflow-x-hidden">
           <Sidebar />
-          <div className="flex-1 flex flex-col min-w-0 transition-all duration-300">
+          <div className="flex-1 min-w-0 overflow-hidden flex flex-col transition-all duration-300">
             
             {/* Desktop Header */}
             <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 sm:px-8 shadow-sm z-20">
@@ -123,8 +123,8 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
                  </div>
             </header>
 
-            <main className="flex-1 overflow-y-auto overflow-x-auto px-4 py-3 sm:p-6 lg:p-8 scroll-smooth">
-              <div className="w-full min-w-0">
+            <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden px-4 py-3 sm:p-6 lg:p-8 scroll-smooth">
+              <div className="w-full min-w-0 max-w-full">
                 {children}
               </div>
             </main>

@@ -157,7 +157,7 @@ export default function ContactsPage() {
           </div>
         </div>
 
-        <div className="flex gap-3 border-b border-gray-200 overflow-x-auto whitespace-nowrap">
+        <div className="flex flex-wrap gap-3 border-b border-gray-200 overflow-x-auto">
           <button
             type="button"
             onClick={() => setActiveTab('all')}
@@ -262,7 +262,7 @@ export default function ContactsPage() {
                 </div>
                 <div className="hidden sm:block overflow-x-auto w-full custom-scrollbar">
                   <Table>
-                    <table className="w-full min-w-[920px] text-left border-collapse">
+                    <table className="min-w-full w-full text-left border-collapse">
                       <thead>
                         <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 text-xs uppercase tracking-wider">
                           <th className="px-6 py-4 font-medium">First Name</th>
@@ -398,7 +398,7 @@ export default function ContactsPage() {
                 </div>
                 <div className="hidden sm:block overflow-x-auto w-full custom-scrollbar">
                   <Table>
-                    <table className="w-full min-w-[760px] text-left border-collapse">
+                    <table className="min-w-full w-full text-left border-collapse">
                       <thead>
                         <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 text-xs uppercase tracking-wider">
                           <th className="px-6 py-4 font-medium">Contact</th>

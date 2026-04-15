@@ -458,9 +458,9 @@ export default function AnalyticsPage() {
                   </div>
                 ))}
               </div>
-              <div className="hidden sm:block overflow-x-auto">
+              <div className="hidden sm:block overflow-x-auto w-full">
               <Table>
-                <table className="w-full min-w-[900px] text-left border-collapse">
+                <table className="min-w-full w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200 text-[13px] font-medium text-gray-600 uppercase tracking-wide">
                       {[
@@ -511,7 +511,7 @@ export default function AnalyticsPage() {
                 <p className="text-sm text-gray-600">
                   Page {tableData.page} of {totalPages}
                 </p>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Button
                     variant="secondary"
                     onClick={() => setPage((p) => Math.max(1, p - 1))}

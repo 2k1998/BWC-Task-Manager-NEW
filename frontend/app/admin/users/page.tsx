@@ -113,8 +113,8 @@ export default function AdminUsersPage() {
             </Button>
           </div>
 
-          <div className="overflow-x-auto whitespace-nowrap border-b border-gray-200">
-            <div className="inline-flex items-center gap-2 py-2">
+          <div className="overflow-x-auto border-b border-gray-200">
+            <div className="inline-flex flex-wrap items-center gap-2 py-2">
               <Link href="/admin/users" className="px-4 py-2 text-sm font-medium border-b-2 border-primary-gold text-primary-gold">
                 Users
               </Link>
@@ -143,7 +143,7 @@ export default function AdminUsersPage() {
                 </div>
               ))}
             </div>
-            <div className="hidden sm:block overflow-x-auto">
+            <div className="hidden sm:block overflow-x-auto w-full">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>

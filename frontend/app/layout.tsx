@@ -23,8 +23,8 @@ export default async function RootLayout({
   const messages = await getMessages();
 
   return (
-    <html lang={locale}>
-      <body className="antialiased">
+    <html lang={locale} className="max-w-full overflow-x-hidden">
+      <body className="antialiased max-w-full overflow-x-hidden">
         <NextIntlClientProvider locale={locale} messages={messages}>
           <ErrorBoundary>
             <AuthProvider>

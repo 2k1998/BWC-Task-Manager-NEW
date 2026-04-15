@@ -40,16 +40,16 @@ export default function Modal({ isOpen, onClose, title, children }: ModalProps) 
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-0 sm:p-4 overflow-y-auto backdrop-blur-sm transition-all"
+      className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto overflow-x-hidden backdrop-blur-sm transition-all"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
     >
-      <div className="bg-white shadow-2xl w-full h-full rounded-none sm:rounded-xl sm:max-w-lg sm:h-auto flex flex-col sm:max-h-[90vh] animate-fadeIn scale-100 opacity-100">
+      <div className="bg-white shadow-2xl w-full max-w-lg mx-auto rounded-xl flex flex-col max-h-[90vh] overflow-y-auto animate-fadeIn scale-100 opacity-100">
         
         {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white sm:rounded-t-xl z-10">
+        <div className="p-4 sm:p-5 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white rounded-t-xl z-10">
           <h2 id={titleId} className="text-lg font-bold text-gray-900">{title}</h2>
           <button 
             onClick={onClose} 
