@@ -21,6 +21,8 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const { user, isLoading } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isPresenceEligible, setIsPresenceEligible] = useState(false);
+  const [showPresence, setShowPresence] = useState(false);
   
   const cmdSearch = useCommandSearch();
 
@@ -56,6 +58,19 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
     };
   }, [mobileMenuOpen]);
 
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(min-width: 1440px)');
+    const syncPresence = (matches: boolean) => {
+      setIsPresenceEligible(matches);
+      setShowPresence(matches);
+    };
+
+    syncPresence(mediaQuery.matches);
+    const onChange = (event: MediaQueryListEvent) => syncPresence(event.matches);
+    mediaQuery.addEventListener('change', onChange);
+    return () => mediaQuery.removeEventListener('change', onChange);
+  }, []);
+
   if (isLoading) {
     return (
         <div className="h-screen w-full flex items-center justify-center bg-brand-silver/20">
@@ -76,9 +91,9 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
           <div className="flex-1 min-w-0 overflow-hidden flex flex-col transition-all duration-300">
             
             {/* Desktop Header */}
-            <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 sm:px-8 shadow-sm z-20">
+            <header className="bg-white border-b border-gray-200 h-16 min-w-0 flex items-center justify-between px-6 sm:px-8 shadow-sm z-20">
                  {/* Left side (Breadcrumbs or Page Title - placeholder for now, maybe mobile toggle) */}
-                 <div className="flex items-center gap-4 flex-1">
+                 <div className="flex min-w-0 overflow-hidden items-center gap-4 flex-1">
                      <button
                         type="button"
                         onClick={() => setMobileMenuOpen(true)}
@@ -92,7 +107,7 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
                      {/* Command Palette Trigger */}
                      <button 
                         onClick={cmdSearch.toggle}
-                        className="hidden sm:flex items-center w-full max-w-sm px-3 py-1.5 text-sm text-gray-600 bg-white border border-brand-silver/80 rounded-lg hover:bg-brand-silver/25 hover:text-black transition-colors focus:outline-none focus:ring-2 focus:ring-primary-gold"
+                        className="hidden sm:flex min-w-0 overflow-hidden items-center w-full max-w-sm px-3 py-1.5 text-sm text-gray-600 bg-white border border-brand-silver/80 rounded-lg hover:bg-brand-silver/25 hover:text-black transition-colors focus:outline-none focus:ring-2 focus:ring-primary-gold"
                      >
                         <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                         <span className="flex-1 text-left">Search...</span>
@@ -101,15 +116,25 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
                  </div>
 
                  {/* Right side: Notifications + Profile */}
-                 <div className="flex items-center gap-4 sm:gap-6">
+                 <div className="flex min-w-0 overflow-hidden items-center gap-3 sm:gap-4">
+                     {!isPresenceEligible && (
+                       <button
+                          type="button"
+                          onClick={() => setShowPresence((value) => !value)}
+                          className="inline-flex items-center justify-center rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+                          aria-label={showPresence ? 'Hide presence panel' : 'Show presence panel'}
+                       >
+                          {showPresence ? 'Hide Presence' : 'Show Presence'}
+                       </button>
+                     )}
                      <NotificationBell />
                      
                      <div className="h-8 w-px bg-gray-200 hidden sm:block"></div>
 
                      {/* Profile Dropdown / Display */}
-                     <Link href="/profile" className="flex items-center gap-3 pl-2">
-                        <div className="text-right hidden sm:block hover:opacity-90 transition-opacity">
-                             <p className="text-sm font-medium text-gray-900 leading-none">{user.first_name} {user.last_name}</p>
+                     <Link href="/profile" className="flex min-w-0 overflow-hidden items-center gap-3 pl-2">
+                        <div className="text-right hidden sm:block hover:opacity-90 transition-opacity min-w-0">
+                             <p className="text-sm font-medium text-gray-900 leading-none truncate">{user.first_name} {user.last_name}</p>
                              <div className="mt-1 flex justify-end"> 
                                 <Badge variant="status" color={isAdmin ? 'red' : 'gray'} className="px-1.5 py-0 text-[10px] uppercase inline-block">
                                     {user.user_type}
@@ -129,7 +154,7 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
               </div>
             </main>
           </div>
-          <PresenceSidebar />
+          <PresenceSidebar visible={showPresence} />
 
           {mobileMenuOpen && (
             <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true">

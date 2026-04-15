@@ -11,7 +11,11 @@ function formatLastSeen(iso: string | null | undefined) {
   return `Last seen ${date.toLocaleString()}`;
 }
 
-export default function PresenceSidebar() {
+interface PresenceSidebarProps {
+  visible?: boolean;
+}
+
+export default function PresenceSidebar({ visible = true }: PresenceSidebarProps) {
   const { presence, isLoading } = usePresence();
 
   const sortedPresence = useMemo(() => {
@@ -19,7 +23,7 @@ export default function PresenceSidebar() {
   }, [presence]);
 
   return (
-    <aside className="hidden lg:flex w-72 border-l border-gray-200 bg-white flex-col">
+    <aside className={`${visible ? 'flex' : 'hidden'} w-72 flex-none border-l border-gray-200 bg-white flex-col`}>
       <div className="h-16 px-4 border-b border-gray-200 flex items-center">
         <h2 className="text-[15px] font-semibold text-gray-900">Presence</h2>
       </div>

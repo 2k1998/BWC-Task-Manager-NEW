@@ -410,7 +410,7 @@ export default function PaymentsPage() {
                 );
               })}
             </div>
-            <div className="hidden sm:block overflow-x-auto w-full custom-scrollbar">
+            <div className="hidden sm:block w-full overflow-x-auto custom-scrollbar">
               <Table>
                 <table className="min-w-full w-full text-left border-collapse">
                   <thead>

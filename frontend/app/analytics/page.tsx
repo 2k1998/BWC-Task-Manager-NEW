@@ -458,7 +458,7 @@ export default function AnalyticsPage() {
                   </div>
                 ))}
               </div>
-              <div className="hidden sm:block overflow-x-auto w-full">
+              <div className="hidden sm:block w-full overflow-x-auto">
               <Table>
                 <table className="min-w-full w-full text-left border-collapse">
                   <thead>

@@ -143,7 +143,7 @@ export default function AdminUsersPage() {
                 </div>
               ))}
             </div>
-            <div className="hidden sm:block overflow-x-auto w-full">
+            <div className="hidden sm:block w-full overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
