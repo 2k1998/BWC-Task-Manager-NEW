@@ -62,7 +62,7 @@ export default function CreateProjectModal({ onClose, onSuccess }: CreateProject
   const fetchDependencies = async () => {
     try {
       const [companiesRes, usersRes] = await Promise.all([
-        apiClient.get('/admin/companies'),
+        apiClient.get('/companies'),
         apiClient.get('/admin/users'),
       ]);
 
