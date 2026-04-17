@@ -48,7 +48,7 @@ export interface Task {
   urgency: string;
   assigned_to_user_id: string | null;
   assigned_to_team_id: string | null;
-  company_id: string;
+  company_id: string | null;
   /** Present on task API responses; used for permissions and display. */
   owner_user_id?: string;
   created_at: string;
@@ -272,14 +272,20 @@ export interface PresenceEntry {
 
 export interface ChatThread {
   id: string;
-  other_user_id?: string | null;
-  other_user_name?: string | null;
-  other_user_username?: string | null;
-  other_user_photo_url?: string | null;
+  is_group: boolean;
+  group_name?: string | null;
+  members: ChatThreadMember[];
   last_message_text?: string | null;
   last_message_created_at?: string | null;
   unread_count?: number;
-  created_at?: string;
+  created_at: string;
+}
+
+export interface ChatThreadMember {
+  user_id: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  email?: string | null;
 }
 
 export interface ChatMessage {
@@ -288,6 +294,8 @@ export interface ChatMessage {
   sender_user_id: string;
   message_text?: string | null;
   file_id?: string | null;
+  message_type?: string;
+  approval_status?: 'pending' | 'approved' | 'declined' | null;
   is_read?: boolean;
   created_at: string;
 }

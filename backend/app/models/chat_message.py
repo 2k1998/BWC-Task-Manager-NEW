@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import sqlalchemy as sa
-from sqlalchemy import Boolean, Column, DateTime, Text
+from sqlalchemy import Boolean, Column, DateTime, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.core.database import Base
@@ -43,6 +43,12 @@ class ChatMessage(Base):
         server_default=sa.text("FALSE"),
         nullable=False,
     )
+    message_type = Column(
+        String,
+        server_default=sa.text("'text'"),
+        nullable=False,
+    )
+    approval_status = Column(String, nullable=True)
 
     created_at = Column(
         DateTime(timezone=True),

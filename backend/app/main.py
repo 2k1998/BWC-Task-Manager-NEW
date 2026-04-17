@@ -23,6 +23,7 @@ from app.api.chat import router as chat_router
 from app.api.approvals import router as approvals_router
 from app.api.analytics import router as analytics_router
 from app.api.users import router as users_router
+from app.routers.departments import router as departments_router
 from app.services.daily_call_reminder_service import (
     start_daily_call_reminder_loop,
     stop_daily_call_reminder_loop,
@@ -82,6 +83,7 @@ app.include_router(chat_router)
 app.include_router(approvals_router)
 app.include_router(analytics_router)
 app.include_router(users_router)
+app.include_router(departments_router)
 
 
 @app.get("/")

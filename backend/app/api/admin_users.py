@@ -428,7 +428,7 @@ def set_user_permissions(
 
 
 @router.post("/{user_id}/deactivate")
-def deactivate_user(
+def deactivate_user(  # Legacy POST endpoint kept for backward compatibility
     user_id: UUID,
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin)
@@ -473,3 +473,123 @@ def deactivate_user(
     )
     
     return {"message": "User deactivated successfully"}
+
+
+@router.patch("/{user_id}/deactivate")
+def deactivate_user_patch(
+    user_id: UUID,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin)
+):
+    """
+    Deactivate a user (admin only).
+    PATCH variant per current API spec.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    if user.id == admin.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot deactivate your own account"
+        )
+
+    before_state = {"is_active": user.is_active}
+    user.is_active = False
+    db.commit()
+    after_state = {"is_active": user.is_active}
+
+    create_audit_log(
+        db=db,
+        admin_user_id=str(admin.id),
+        target_user_id=str(user.id),
+        action="deactivate_user",
+        before_state=before_state,
+        after_state=after_state
+    )
+
+    return {"message": "User deactivated successfully"}
+
+
+@router.patch("/{user_id}/activate")
+def activate_user(
+    user_id: UUID,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin)
+):
+    """
+    Activate a user (admin only).
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    before_state = {"is_active": user.is_active}
+    user.is_active = True
+    db.commit()
+    after_state = {"is_active": user.is_active}
+
+    create_audit_log(
+        db=db,
+        admin_user_id=str(admin.id),
+        target_user_id=str(user.id),
+        action="activate_user",
+        before_state=before_state,
+        after_state=after_state
+    )
+
+    return {"message": "User activated successfully"}
+
+
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_user(
+    user_id: UUID,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin)
+):
+    """
+    Permanently delete a user (admin only).
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    if user.id == admin.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete your own account"
+        )
+
+    try:
+        db.delete(user)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unable to delete user due to related records"
+        )
+
+    create_audit_log(
+        db=db,
+        admin_user_id=str(admin.id),
+        target_user_id=str(user_id),
+        action="delete_user",
+        before_state={"id": str(user_id)},
+        after_state=None
+    )
+
+    return None

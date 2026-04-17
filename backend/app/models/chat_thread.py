@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import sqlalchemy as sa
-from sqlalchemy import Column, DateTime
+from sqlalchemy import Boolean, Column, DateTime, String
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.core.database import Base
@@ -20,12 +20,23 @@ class ChatThread(Base):
     user_one_id = Column(
         UUID(as_uuid=True),
         sa.ForeignKey("users.id", ondelete="RESTRICT"),
-        nullable=False,
+        nullable=True,
     )
     user_two_id = Column(
         UUID(as_uuid=True),
         sa.ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    is_group = Column(
+        Boolean,
+        server_default=sa.text("FALSE"),
         nullable=False,
+    )
+    group_name = Column(String, nullable=True)
+    created_by = Column(
+        UUID(as_uuid=True),
+        sa.ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=True,
     )
 
     created_at = Column(
@@ -34,9 +45,5 @@ class ChatThread(Base):
         nullable=False,
     )
 
-    # Unique pairing is enforced in DB. We also enforce ordering to prevent duplicates.
-    __table_args__ = (
-        sa.UniqueConstraint("user_one_id", "user_two_id", name="uq_chat_threads_user_pair"),
-        sa.CheckConstraint("user_one_id < user_two_id", name="ck_chat_threads_user_order"),
-    )
+    __table_args__ = ()
 

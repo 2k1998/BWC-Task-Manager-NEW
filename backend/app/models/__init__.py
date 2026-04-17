@@ -26,6 +26,7 @@ from app.models.car_income import CarIncome
 from app.models.car_expense import CarExpense
 from app.models.user_profile import UserProfile
 from app.models.chat_thread import ChatThread
+from app.models.chat_thread_member import ChatThreadMember
 from app.models.chat_message import ChatMessage
 from app.models.approval_request import ApprovalRequest
 
@@ -57,6 +58,7 @@ __all__ = [
     "CarExpense",
     "UserProfile",
     "ChatThread",
+    "ChatThreadMember",
     "ChatMessage",
     "ApprovalRequest",
 ]

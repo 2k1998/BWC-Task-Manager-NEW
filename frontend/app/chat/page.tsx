@@ -3,15 +3,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import ProtectedLayout from '@/components/ProtectedLayout';
-import { Badge, Button, EmptyState, ErrorState, Input, LoadingSkeleton } from '@/components/ui';
+import { Badge, Button, EmptyState, ErrorState, Input, LoadingSkeleton, Modal } from '@/components/ui';
 import { getPublicWsBaseUrl } from '@/lib/apiBase';
 import apiClient from '@/lib/apiClient';
 import { getAccessToken } from '@/lib/auth';
 import { getErrorMessage } from '@/lib/errorHandler';
-import type { ChatMessage, ChatThread, UserSearchResult } from '@/lib/types';
+import type { ChatMessage, ChatThread, ChatThreadMember, UserSearchResult } from '@/lib/types';
 
 function asRecord(input: unknown): Record<string, unknown> {
   return typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : {};
+}
+
+function fullName(member: Partial<ChatThreadMember> | UserSearchResult): string {
+  const first = String(member.first_name || '').trim();
+  const last = String(member.last_name || '').trim();
+  const named = `${first} ${last}`.trim();
+  return named || String(member.email || '').trim() || 'Unknown user';
 }
 
 function normalizeThreads(data: unknown): ChatThread[] {
@@ -20,45 +27,25 @@ function normalizeThreads(data: unknown): ChatThread[] {
   if (!Array.isArray(raw)) return [];
   return raw.map((t) => {
     const row = asRecord(t);
-    const lastMessage = asRecord(row.last_message);
-    const firstName = typeof row.other_user_first_name === 'string' ? row.other_user_first_name : '';
-    const lastName = typeof row.other_user_last_name === 'string' ? row.other_user_last_name : '';
+    const membersRaw = Array.isArray(row.members) ? row.members : [];
+    const members = membersRaw.map((m) => {
+      const member = asRecord(m);
+      return {
+        user_id: String(member.user_id || ''),
+        first_name: String(member.first_name || ''),
+        last_name: String(member.last_name || ''),
+        email: String(member.email || ''),
+      };
+    }).filter((m) => m.user_id);
     return {
       id: typeof row.id === 'string' ? row.id : '',
-      other_user_id:
-        typeof row.other_user_id === 'string'
-          ? row.other_user_id
-          : typeof row.user_id === 'string'
-          ? row.user_id
-          : typeof row.participant_id === 'string'
-          ? row.participant_id
-          : null,
-      other_user_name:
-        (typeof row.other_user_name === 'string' ? row.other_user_name : '') ||
-        (typeof row.user_name === 'string' ? row.user_name : '') ||
-        [firstName, lastName].filter(Boolean).join(' ') ||
-        'Unknown user',
-      other_user_username:
-        typeof row.other_user_username === 'string'
-          ? row.other_user_username
-          : typeof row.username === 'string'
-          ? row.username
-          : null,
-      other_user_photo_url:
-        typeof row.other_user_photo_url === 'string'
-          ? row.other_user_photo_url
-          : typeof row.profile_photo_url === 'string'
-          ? row.profile_photo_url
-          : null,
-      last_message_text:
-        (typeof row.last_message_text === 'string' ? row.last_message_text : '') ||
-        (typeof lastMessage.message_text === 'string' ? lastMessage.message_text : ''),
-      last_message_created_at:
-        (typeof row.last_message_created_at === 'string' ? row.last_message_created_at : null) ||
-        (typeof lastMessage.created_at === 'string' ? lastMessage.created_at : null) ||
-        (typeof row.created_at === 'string' ? row.created_at : null),
+      is_group: Boolean(row.is_group),
+      group_name: typeof row.group_name === 'string' ? row.group_name : null,
+      members,
+      last_message_text: typeof row.last_message_text === 'string' ? row.last_message_text : null,
+      last_message_created_at: typeof row.last_message_created_at === 'string' ? row.last_message_created_at : null,
       unread_count: Number(typeof row.unread_count === 'number' ? row.unread_count : 0),
-      created_at: typeof row.created_at === 'string' ? row.created_at : undefined,
+      created_at: typeof row.created_at === 'string' ? row.created_at : new Date().toISOString(),
     };
   }).filter((t) => t.id.length > 0);
 }
@@ -76,6 +63,11 @@ function normalizeMessages(data: unknown, threadId: string): ChatMessage[] {
         sender_user_id: typeof row.sender_user_id === 'string' ? row.sender_user_id : '',
         message_text: typeof row.message_text === 'string' ? row.message_text : '',
         file_id: typeof row.file_id === 'string' ? row.file_id : null,
+        message_type: typeof row.message_type === 'string' ? row.message_type : 'text',
+        approval_status:
+          row.approval_status === 'approved' || row.approval_status === 'declined' || row.approval_status === 'pending'
+            ? row.approval_status
+            : null,
         is_read: Boolean(row.is_read),
         created_at: typeof row.created_at === 'string' ? row.created_at : new Date().toISOString(),
       };
@@ -96,6 +88,15 @@ export default function ChatPage() {
   const [sending, setSending] = useState(false);
   const [attachment, setAttachment] = useState<File | null>(null);
   const [typingText, setTypingText] = useState('');
+  const [isGroupMode, setIsGroupMode] = useState(false);
+  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
+  const [groupName, setGroupName] = useState('');
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [approvalForm, setApprovalForm] = useState({
+    request_type: 'General',
+    title: '',
+    description: '',
+  });
 
   const wsRef = useRef<WebSocket | null>(null);
   const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -105,6 +106,24 @@ export default function ChatPage() {
     () => threads.find((thread) => thread.id === selectedThreadId) || null,
     [threads, selectedThreadId]
   );
+
+  const selectedThreadTitle = useMemo(() => {
+    if (!selectedThread) return 'Conversation';
+    if (selectedThread.is_group) {
+      return selectedThread.group_name || selectedThread.members.map((m) => fullName(m)).join(', ');
+    }
+    const other = selectedThread.members.find((m) => m.user_id !== currentUserIdRef.current);
+    return fullName(other || {});
+  }, [selectedThread]);
+
+  const selectedThreadMembersLabel = useMemo(() => {
+    if (!selectedThread) return '';
+    if (selectedThread.is_group) {
+      return selectedThread.members.map((m) => fullName(m)).join(', ');
+    }
+    const other = selectedThread.members.find((m) => m.user_id !== currentUserIdRef.current);
+    return fullName(other || {});
+  }, [selectedThread]);
 
   const groupedMessages = useMemo(() => {
     return messages.reduce<Record<string, ChatMessage[]>>((acc, message) => {
@@ -139,8 +158,8 @@ export default function ChatPage() {
   const fetchThreadMessages = async (threadId: string) => {
     try {
       setLoadingMessages(true);
-      const response = await apiClient.get(`/chat/threads/${threadId}`);
-      setMessages(normalizeMessages(response.data, threadId));
+      const response = await apiClient.get(`/chat/threads/${threadId}/messages`);
+      setMessages(normalizeMessages(response.data, threadId).sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()));
     } catch (err) {
       toast.error(getErrorMessage(err, 'Failed to load conversation.'));
     } finally {
@@ -271,17 +290,55 @@ export default function ChatPage() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const handleStartThread = async (user: UserSearchResult) => {
+  const createDirectThread = async (user: UserSearchResult) => {
     try {
-      const response = await apiClient.post('/chat/threads', { other_user_id: user.id });
-      const threadId = response.data?.thread_id || response.data?.id || response.data?.thread?.id;
+      const response = await apiClient.post('/chat/threads', { member_ids: [user.id], is_group: false });
+      const threadId = response.data?.id;
       if (!threadId) throw new Error('No thread id returned');
       await fetchThreads();
       setSelectedThreadId(threadId);
       setSearchQuery('');
       setSearchResults([]);
+      setIsGroupMode(false);
+      setSelectedMemberIds([]);
+      setGroupName('');
     } catch (err) {
       toast.error(getErrorMessage(err, 'Failed to start conversation.'));
+    }
+  };
+
+  const toggleGroupMember = (userId: string) => {
+    setSelectedMemberIds((prev) => (
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
+    ));
+  };
+
+  const createGroupThread = async () => {
+    if (!groupName.trim()) {
+      toast.error('Group name is required');
+      return;
+    }
+    if (selectedMemberIds.length === 0) {
+      toast.error('Select at least one user');
+      return;
+    }
+    try {
+      const response = await apiClient.post('/chat/threads', {
+        member_ids: selectedMemberIds,
+        is_group: true,
+        group_name: groupName.trim(),
+      });
+      const threadId = response.data?.id;
+      if (!threadId) throw new Error('No thread id returned');
+      await fetchThreads();
+      setSelectedThreadId(threadId);
+      setSearchQuery('');
+      setSearchResults([]);
+      setIsGroupMode(false);
+      setSelectedMemberIds([]);
+      setGroupName('');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to create group chat.'));
     }
   };
 
@@ -305,8 +362,7 @@ export default function ChatPage() {
           null;
       }
 
-      await apiClient.post('/chat/messages', {
-        thread_id: selectedThreadId,
+      await apiClient.post(`/chat/threads/${selectedThreadId}/messages`, {
         message_text: messageInput.trim() || null,
         file_id: fileId,
       });
@@ -320,6 +376,52 @@ export default function ChatPage() {
     } finally {
       setSending(false);
     }
+  };
+
+  const handleSendApprovalRequest = async () => {
+    if (!selectedThreadId) return;
+    if (!approvalForm.title.trim() || !approvalForm.description.trim()) {
+      toast.error('Title and description are required');
+      return;
+    }
+    try {
+      await apiClient.post(`/chat/threads/${selectedThreadId}/approval-request`, approvalForm);
+      setShowApprovalModal(false);
+      setApprovalForm({ request_type: 'General', title: '', description: '' });
+      await fetchThreadMessages(selectedThreadId);
+      await fetchThreads();
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to send approval request.'));
+    }
+  };
+
+  const handleApprovalAction = async (messageId: string, status: 'approved' | 'declined') => {
+    try {
+      await apiClient.patch(`/chat/messages/${messageId}/approval`, { status });
+      if (selectedThreadId) {
+        await fetchThreadMessages(selectedThreadId);
+        await fetchThreads();
+      }
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to update approval status.'));
+    }
+  };
+
+  const parseApprovalText = (text: string | null | undefined) => {
+    if (!text) return null;
+    const parsed = {
+      request_type: '',
+      title: '',
+      description: '',
+    };
+    const lines = text.split('\n');
+    for (const line of lines) {
+      if (line.toLowerCase().startsWith('type:')) parsed.request_type = line.slice(5).trim();
+      if (line.toLowerCase().startsWith('title:')) parsed.title = line.slice(6).trim();
+      if (line.toLowerCase().startsWith('description:')) parsed.description = line.slice(12).trim();
+    }
+    if (!parsed.title && !parsed.description && !parsed.request_type) return null;
+    return parsed;
   };
 
   return (
@@ -338,18 +440,53 @@ export default function ChatPage() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search user..."
               />
-              {searchResults.length > 0 && (
+              {searchQuery.trim() && (
                 <div className="mt-2 border border-gray-200 rounded-md bg-white max-h-48 overflow-y-auto">
+                  <button
+                    type="button"
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 font-medium"
+                    onClick={() => {
+                      setIsGroupMode(true);
+                      setSelectedMemberIds([]);
+                    }}
+                  >
+                    + New Group
+                  </button>
                   {searchResults.map((u) => (
-                    <button
-                      key={u.id}
-                      type="button"
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
-                      onClick={() => handleStartThread(u)}
-                    >
-                      {[u.first_name, u.last_name].filter(Boolean).join(' ') || u.username || u.email || 'User'}
-                    </button>
+                    isGroupMode ? (
+                      <label key={u.id} className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectedMemberIds.includes(u.id)}
+                          onChange={() => toggleGroupMember(u.id)}
+                        />
+                        <span>{fullName(u)}</span>
+                      </label>
+                    ) : (
+                      <button
+                        key={u.id}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
+                        onClick={() => createDirectThread(u)}
+                      >
+                        {fullName(u)}
+                      </button>
+                    )
                   ))}
+                  {isGroupMode && (
+                    <div className="p-3 border-t border-gray-200 space-y-2">
+                      <input
+                        value={groupName}
+                        onChange={(e) => setGroupName(e.target.value)}
+                        placeholder="Group name"
+                        className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm"
+                      />
+                      <div className="flex gap-2">
+                        <Button type="button" onClick={createGroupThread}>Create Group</Button>
+                        <Button type="button" variant="secondary" onClick={() => setIsGroupMode(false)}>Cancel</Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -375,7 +512,11 @@ export default function ChatPage() {
                         }`}
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <p className="text-[15px] font-medium text-gray-900 truncate">{thread.other_user_name}</p>
+                          <p className="text-[15px] font-medium text-gray-900 truncate">
+                            {thread.is_group
+                              ? (thread.group_name || thread.members.map((m) => fullName(m)).join(', '))
+                              : fullName(thread.members.find((m) => m.user_id !== currentUserIdRef.current) || {})}
+                          </p>
                           {thread.unread_count ? <Badge color="blue">{thread.unread_count}</Badge> : null}
                         </div>
                         <p className="text-sm text-gray-600 line-clamp-2">{thread.last_message_text || 'No messages yet'}</p>
@@ -413,7 +554,10 @@ export default function ChatPage() {
                     >
                       ←
                     </button>
-                    <h2 className="font-semibold text-gray-900 truncate">{selectedThread?.other_user_name || 'Conversation'}</h2>
+                    <div className="min-w-0">
+                      <h2 className="font-semibold text-gray-900 truncate">{selectedThreadTitle}</h2>
+                      <p className="text-xs text-gray-500 truncate">{selectedThreadMembersLabel}</p>
+                    </div>
                   </div>
                   <span className="text-xs text-gray-500">{typingText}</span>
                 </header>
@@ -431,13 +575,44 @@ export default function ChatPage() {
                           const isMine = message.sender_user_id === currentUserIdRef.current;
                           return (
                             <div key={message.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
-                              <div className="max-w-[70%] border border-gray-200 rounded-md px-3 py-2 bg-white">
-                                {message.message_text ? <p className="text-[15px] text-gray-800">{message.message_text}</p> : null}
-                                {message.file_id ? <p className="text-xs text-gray-500 mt-1">Attachment: {message.file_id}</p> : null}
-                                <div className="text-[11px] text-gray-400 mt-1">
-                                  {new Date(message.created_at).toLocaleTimeString()} {isMine ? (message.is_read ? '· Read' : '· Sent') : ''}
+                              {message.message_type === 'approval' ? (
+                                <div className="max-w-[80%] border border-gray-200 rounded-md px-3 py-3 bg-white space-y-2">
+                                  {(() => {
+                                    const parsed = parseApprovalText(message.message_text);
+                                    return (
+                                      <>
+                                        <p className="text-sm font-semibold text-gray-900">{parsed?.title || 'Approval Request'}</p>
+                                        {parsed?.request_type ? <p className="text-xs text-gray-500">Type: {parsed.request_type}</p> : null}
+                                        <p className="text-sm text-gray-700">{parsed?.description || message.message_text}</p>
+                                      </>
+                                    );
+                                  })()}
+                                  <Badge color={
+                                    message.approval_status === 'approved' ? 'green' :
+                                    message.approval_status === 'declined' ? 'red' : 'yellow'
+                                  }>
+                                    {message.approval_status ? message.approval_status : 'pending'}
+                                  </Badge>
+                                  {!isMine && message.approval_status === 'pending' && (
+                                    <div className="flex flex-wrap gap-2">
+                                      <Button type="button" size="sm" onClick={() => handleApprovalAction(message.id, 'approved')}>Approve</Button>
+                                      <Button type="button" size="sm" variant="destructive" onClick={() => handleApprovalAction(message.id, 'declined')}>Decline</Button>
+                                      <Button type="button" size="sm" variant="secondary">Discuss</Button>
+                                    </div>
+                                  )}
+                                  <div className="text-[11px] text-gray-400 mt-1">
+                                    {new Date(message.created_at).toLocaleTimeString()} {isMine ? (message.is_read ? '· Read' : '· Sent') : ''}
+                                  </div>
                                 </div>
-                              </div>
+                              ) : (
+                                <div className="max-w-[70%] border border-gray-200 rounded-md px-3 py-2 bg-white">
+                                  {message.message_text ? <p className="text-[15px] text-gray-800">{message.message_text}</p> : null}
+                                  {message.file_id ? <p className="text-xs text-gray-500 mt-1">Attachment: {message.file_id}</p> : null}
+                                  <div className="text-[11px] text-gray-400 mt-1">
+                                    {new Date(message.created_at).toLocaleTimeString()} {isMine ? (message.is_read ? '· Read' : '· Sent') : ''}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           );
                         })}
@@ -463,6 +638,9 @@ export default function ChatPage() {
                     {attachment ? <span className="text-xs text-gray-500 truncate">{attachment.name}</span> : null}
                   </div>
                   <div className="flex items-center gap-2">
+                    <Button type="button" variant="secondary" onClick={() => setShowApprovalModal(true)}>
+                      Request Approval
+                    </Button>
                     <input
                       value={messageInput}
                       onChange={(e) => {
@@ -490,6 +668,48 @@ export default function ChatPage() {
           </section>
         </div>
       </div>
+      <Modal
+        isOpen={showApprovalModal}
+        onClose={() => setShowApprovalModal(false)}
+        title="Request Approval"
+      >
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Request Type</label>
+            <select
+              value={approvalForm.request_type}
+              onChange={(e) => setApprovalForm((prev) => ({ ...prev, request_type: e.target.value }))}
+              className="w-full border border-gray-200 rounded-md px-3 py-2"
+            >
+              <option value="General">General</option>
+              <option value="Financial">Financial</option>
+              <option value="Leave">Leave</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+            <input
+              value={approvalForm.title}
+              onChange={(e) => setApprovalForm((prev) => ({ ...prev, title: e.target.value }))}
+              className="w-full border border-gray-200 rounded-md px-3 py-2"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <textarea
+              value={approvalForm.description}
+              onChange={(e) => setApprovalForm((prev) => ({ ...prev, description: e.target.value }))}
+              className="w-full border border-gray-200 rounded-md px-3 py-2"
+              rows={4}
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setShowApprovalModal(false)}>Cancel</Button>
+            <Button type="button" onClick={handleSendApprovalRequest}>Send Request</Button>
+          </div>
+        </div>
+      </Modal>
     </ProtectedLayout>
   );
 }

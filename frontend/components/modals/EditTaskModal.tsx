@@ -20,8 +20,6 @@ const URGENCY_OPTIONS = [
   'Not Urgent & Not Important',
 ];
 
-const PRIORITIES = ['Low', 'Medium', 'High', 'Critical'];
-
 export default function EditTaskModal({ task, onClose, onSuccess }: EditTaskModalProps) {
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -37,7 +35,6 @@ export default function EditTaskModal({ task, onClose, onSuccess }: EditTaskModa
     description: task.description || '',
     company_id: task.company_id || '',
     department: (task as any).department || '',
-    priority: (task as any).priority || '',
     urgency_label: (task as any).urgency_label || task.urgency || '',
     start_date: ((task as any).start_date || '').split('T')[0],
     deadline: (task.deadline || '').split('T')[0],
@@ -67,7 +64,7 @@ export default function EditTaskModal({ task, onClose, onSuccess }: EditTaskModa
     try {
       const [companiesRes, departmentsRes, usersRes, teamsRes, attachmentsRes] = await Promise.all([
         apiClient.get('/companies?page=1&page_size=100'),
-        apiClient.get('/admin/departments'),
+        apiClient.get('/departments'),
         apiClient.get('/users'),
         apiClient.get('/teams'),
         apiClient.get(`/tasks/${task.id}/documents`),
@@ -77,7 +74,10 @@ export default function EditTaskModal({ task, onClose, onSuccess }: EditTaskModa
         String(a.name || '').localeCompare(String(b.name || ''))
       );
       setCompanies(sortedCompanies);
-      setDepartments(departmentsRes.data.departments || []);
+      const departmentsData = Array.isArray(departmentsRes.data)
+        ? departmentsRes.data
+        : (departmentsRes.data.departments || []);
+      setDepartments(departmentsData);
       setUsers(usersRes.data.users || []);
       setTeams(teamsRes.data.teams || []);
       setAttachments(attachmentsRes.data || []);
@@ -96,7 +96,7 @@ export default function EditTaskModal({ task, onClose, onSuccess }: EditTaskModa
       toast.error('Task title is required');
       return;
     }
-    if (!formData.company_id || !formData.department || !formData.priority || !formData.urgency_label) {
+    if (!formData.company_id || !formData.department || !formData.urgency_label) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -126,7 +126,6 @@ export default function EditTaskModal({ task, onClose, onSuccess }: EditTaskModa
         description: formData.description || null,
         company_id: formData.company_id,
         department: formData.department,
-        priority: formData.priority,
         urgency_label: formData.urgency_label,
         start_date: formData.start_date,
         deadline: formData.deadline,
@@ -243,22 +242,6 @@ export default function EditTaskModal({ task, onClose, onSuccess }: EditTaskModa
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Priority *</label>
-              <select
-                required
-                disabled={isCompleted}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary-gold focus:border-transparent outline-none transition-all disabled:bg-gray-50"
-                value={formData.priority}
-                onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-              >
-                <option value="" disabled>Select priority...</option>
-                {PRIORITIES.map((p) => (
-                  <option key={p} value={p}>{p}</option>
-                ))}
-              </select>
-            </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Urgency Level *</label>
               <select

@@ -20,8 +20,6 @@ const URGENCY_OPTIONS = [
   "Not Urgent & Not Important"
 ];
 
-const PRIORITIES = ["Low", "Medium", "High", "Critical"];
-
 export default function CreateTaskModal({ onClose, onSuccess }: CreateTaskModalProps) {
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -48,7 +46,6 @@ export default function CreateTaskModal({ onClose, onSuccess }: CreateTaskModalP
     description: '',
     company_id: '', // Fetched dynamically
     department: '',
-    priority: '',      // NO DEFAULT - User must select
     urgency_label: '', // NO DEFAULT - User must select
     start_date: new Date().toISOString().split('T')[0],
     deadline: '',
@@ -71,24 +68,22 @@ export default function CreateTaskModal({ onClose, onSuccess }: CreateTaskModalP
     try {
       const [companiesRes, departmentsRes, usersRes, teamsRes] = await Promise.all([
         apiClient.get('/companies?page=1&page_size=100'),
-        apiClient.get('/admin/departments'),
+        apiClient.get('/departments'),
         apiClient.get('/admin/users'), 
         apiClient.get('/teams'),
       ]);
 
       setCompanies(companiesRes.data.companies || []);
-      setDepartments(departmentsRes.data.departments || []);
+      const departmentsData = Array.isArray(departmentsRes.data)
+        ? departmentsRes.data
+        : (departmentsRes.data.departments || []);
+      setDepartments(departmentsData);
       setUsers(usersRes.data.users || []);
       setTeams(teamsRes.data.teams || []);
 
-      // Auto-select first company if available
-      if (companiesRes.data.companies?.length > 0) {
-        setFormData(prev => ({ ...prev, company_id: companiesRes.data.companies[0].id }));
-      }
-      
-      // Auto-populate department text if available (Convenience)
-       if (departmentsRes.data.departments?.length > 0) {
-        setFormData(prev => ({ ...prev, department: departmentsRes.data.departments[0].name }));
+      // Auto-select first department if available
+      if (departmentsData.length > 0) {
+        setFormData(prev => ({ ...prev, department: departmentsData[0].name }));
       }
 
     } catch (err) {
@@ -106,10 +101,6 @@ export default function CreateTaskModal({ onClose, onSuccess }: CreateTaskModalP
         toast.error('Title is required');
         return;
     }
-    if (!formData.company_id) {
-        toast.error('Company ID is missing (System Error)');
-        return;
-    }
     if (!formData.start_date || !formData.deadline) {
         toast.error('Start date and deadline are required');
         return;
@@ -120,11 +111,6 @@ export default function CreateTaskModal({ onClose, onSuccess }: CreateTaskModalP
         return;
     }
 
-    // MANDATORY SELECTION VALIDATION
-    if (!formData.priority) {
-        toast.error('Please select a Priority level');
-        return;
-    }
     if (!formData.urgency_label) {
         toast.error('Please select an Urgency level');
         return;
@@ -147,9 +133,8 @@ export default function CreateTaskModal({ onClose, onSuccess }: CreateTaskModalP
       const payload = {
           title: formData.title,
           description: formData.description,
-          company_id: formData.company_id,
-          department: formData.department, // Text field
-          priority: formData.priority,
+          company_id: formData.company_id || null,
+          department: formData.department,
           urgency_label: formData.urgency_label,
           start_date: formData.start_date,
           deadline: formData.deadline,
@@ -270,40 +255,38 @@ export default function CreateTaskModal({ onClose, onSuccess }: CreateTaskModalP
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Department - TEXT Field with Datalist/Select convenience */}
                 <div>
-                     <label className="block text-sm font-medium text-gray-700 mb-1">Department *</label>
-                     <div className="relative">
-                        <input
-                            type="text"
-                            required
-                            list="dept-suggestions"
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-gold focus:border-transparent outline-none transition-all"
-                            value={formData.department}
-                            onChange={e => setFormData({...formData, department: e.target.value})}
-                            placeholder="e.g. Finance"
-                        />
-                        <datalist id="dept-suggestions">
-                            {departments.map(d => (
-                                <option key={d.id} value={d.name} />
-                            ))}
-                        </datalist>
-                     </div>
+                     <label className="block text-sm font-medium text-gray-700 mb-1">Company</label>
+                     <select
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-gold focus:border-transparent outline-none transition-all bg-white"
+                        value={formData.company_id}
+                        onChange={e => setFormData({...formData, company_id: e.target.value})}
+                     >
+                        <option value="">No Company</option>
+                        {companies.map(c => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                     </select>
                 </div>
 
-                {/* Priority */}
+                {/* Department */}
                 <div>
-                     <label className="block text-sm font-medium text-gray-700 mb-1">Priority *</label>
+                     <label className="block text-sm font-medium text-gray-700 mb-1">
+                       Department{departments.length > 0 ? ' *' : ''}
+                     </label>
                      <select
-                        required
+                        required={departments.length > 0}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-gold focus:border-transparent outline-none transition-all bg-white"
-                        value={formData.priority}
-                        onChange={e => setFormData({...formData, priority: e.target.value})}
+                        value={formData.department}
+                        onChange={e => setFormData({...formData, department: e.target.value})}
                      >
-                        <option value="" disabled>Select Priority...</option>
-                        {PRIORITIES.map(p => (
-                            <option key={p} value={p}>{p}</option>
-                        ))}
+                        {departments.length === 0 ? (
+                          <option value="" disabled>No departments available</option>
+                        ) : (
+                          departments.map(d => (
+                            <option key={d.id} value={d.name}>{d.name}</option>
+                          ))
+                        )}
                      </select>
                 </div>
             </div>

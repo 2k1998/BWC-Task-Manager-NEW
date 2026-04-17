@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
 from uuid import UUID
 
 import sqlalchemy as sa
-from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal, get_db
@@ -13,13 +12,16 @@ from app.core.deps import get_current_user
 from app.core.security import decode_token
 from app.models.chat_message import ChatMessage
 from app.models.chat_thread import ChatThread
+from app.models.chat_thread_member import ChatThreadMember
 from app.models.user import User
 from app.schemas.chat import (
+    ApprovalRequestCreate,
+    ApprovalStatusPatch,
     ChatMessageListResponse,
     ChatMessageResponse,
-    ChatThreadDetailResponse,
-    ChatThreadItemResponse,
     ChatThreadListResponse,
+    ChatThreadMemberResponse,
+    ChatThreadResponse,
     CreateMessageRequest,
     CreateThreadRequest,
 )
@@ -28,29 +30,29 @@ from app.utils.connection_manager import connection_manager
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
 
-def _thread_item_from_thread(
-    thread: ChatThread,
-    last_message: ChatMessage | None,
-    unread_count: int,
-) -> ChatThreadItemResponse:
-    preview: str | None
-    if last_message is None:
-        preview = None
-    elif last_message.message_text is not None and last_message.message_text.strip() != "":
-        preview = last_message.message_text
-    elif last_message.file_id is not None:
-        preview = "Attachment"
-    else:
-        preview = None
+def _get_user_from_token(db: Session, token: str) -> User | None:
+    payload = decode_token(token)
+    if not payload or payload.get("type") != "access":
+        return None
+    user_id = payload.get("sub")
+    if not user_id:
+        return None
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user or not user.is_active:
+        return None
+    return user
 
-    return ChatThreadItemResponse(
-        id=thread.id,
-        user_one_id=thread.user_one_id,
-        user_two_id=thread.user_two_id,
-        created_at=thread.created_at,
-        last_message_preview=preview,
-        unread_count=unread_count,
+
+def _is_thread_member(db: Session, thread_id: UUID, user_id: UUID) -> bool:
+    membership = (
+        db.query(ChatThreadMember.id)
+        .filter(
+            ChatThreadMember.thread_id == thread_id,
+            ChatThreadMember.user_id == user_id,
+        )
+        .first()
     )
+    return membership is not None
 
 
 def _serialize_chat_message(message: ChatMessage) -> dict:
@@ -59,204 +61,170 @@ def _serialize_chat_message(message: ChatMessage) -> dict:
         "thread_id": str(message.thread_id),
         "sender_user_id": str(message.sender_user_id),
         "message_text": message.message_text,
-        "file_id": str(message.file_id) if message.file_id is not None else None,
+        "file_id": str(message.file_id) if message.file_id else None,
+        "message_type": message.message_type,
+        "approval_status": message.approval_status,
         "is_read": message.is_read,
         "created_at": message.created_at.isoformat() if message.created_at else None,
     }
 
 
-def _get_user_from_token(db: Session, token: str) -> User | None:
-    payload = decode_token(token)
-    if not payload or payload.get("type") != "access":
-        return None
+def _thread_members(db: Session, thread_id: UUID) -> list[ChatThreadMemberResponse]:
+    rows = (
+        db.query(User.id, User.first_name, User.last_name, User.email)
+        .join(ChatThreadMember, ChatThreadMember.user_id == User.id)
+        .filter(ChatThreadMember.thread_id == thread_id)
+        .order_by(User.first_name.asc(), User.last_name.asc())
+        .all()
+    )
+    return [
+        ChatThreadMemberResponse(
+            user_id=row[0],
+            first_name=row[1],
+            last_name=row[2],
+            email=row[3],
+        )
+        for row in rows
+    ]
 
-    user_id = payload.get("sub")
-    if not user_id:
-        return None
 
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user or not user.is_active:
-        return None
+def _thread_response(db: Session, thread: ChatThread) -> ChatThreadResponse:
+    return ChatThreadResponse(
+        id=thread.id,
+        is_group=thread.is_group,
+        group_name=thread.group_name,
+        created_at=thread.created_at,
+        members=_thread_members(db, thread.id),
+    )
 
-    return user
+
+@router.post("/threads", response_model=ChatThreadResponse, status_code=status.HTTP_201_CREATED)
+def create_thread(
+    payload: CreateThreadRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    unique_member_ids = {member_id for member_id in payload.member_ids if member_id != current_user.id}
+    if not payload.is_group and len(unique_member_ids) != 1:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Direct threads require exactly one other member")
+
+    if payload.is_group and (payload.group_name is None or payload.group_name.strip() == ""):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="group_name is required for group threads")
+
+    requested_users = (
+        db.query(User.id)
+        .filter(User.id.in_(list(unique_member_ids)))
+        .all()
+        if unique_member_ids
+        else []
+    )
+    found_ids = {row[0] for row in requested_users}
+    if found_ids != unique_member_ids:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="One or more members do not exist")
+
+    if not payload.is_group:
+        other_user_id = next(iter(unique_member_ids))
+        existing_threads = (
+            db.query(ChatThread.id)
+            .join(ChatThreadMember, ChatThreadMember.thread_id == ChatThread.id)
+            .filter(ChatThread.is_group.is_(False), ChatThreadMember.user_id.in_([current_user.id, other_user_id]))
+            .group_by(ChatThread.id)
+            .having(sa.func.count(sa.distinct(ChatThreadMember.user_id)) == 2)
+            .all()
+        )
+        if existing_threads:
+            existing_id = existing_threads[0][0]
+            existing_thread = db.query(ChatThread).filter(ChatThread.id == existing_id).first()
+            if existing_thread:
+                return _thread_response(db, existing_thread)
+
+    member_ids = list(unique_member_ids | {current_user.id})
+    thread = ChatThread(
+        user_one_id=min(member_ids),
+        user_two_id=max(member_ids),
+        is_group=payload.is_group,
+        group_name=payload.group_name.strip() if payload.group_name else None,
+        created_by=current_user.id,
+    )
+    db.add(thread)
+    db.flush()
+
+    for member_id in member_ids:
+        db.add(ChatThreadMember(thread_id=thread.id, user_id=member_id))
+
+    db.commit()
+    db.refresh(thread)
+    return _thread_response(db, thread)
 
 
 @router.get("/threads", response_model=ChatThreadListResponse)
 def list_threads(
-    page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    threads_q = db.query(ChatThread).filter(
-        sa.or_(
-            ChatThread.user_one_id == current_user.id,
-            ChatThread.user_two_id == current_user.id,
-        )
-    )
-    total = threads_q.count()
-    threads = threads_q.all()
-
-    if not threads:
-        return ChatThreadListResponse(threads=[], total=0, page=page, page_size=page_size)
-
-    thread_ids = [t.id for t in threads]
-
-    # Latest message per thread (single query).
-    latest_messages = (
-        db.query(ChatMessage)
-        .filter(ChatMessage.thread_id.in_(thread_ids))
-        .order_by(ChatMessage.thread_id, ChatMessage.created_at.desc())
-        .distinct(ChatMessage.thread_id)
+    threads = (
+        db.query(ChatThread)
+        .join(ChatThreadMember, ChatThreadMember.thread_id == ChatThread.id)
+        .filter(ChatThreadMember.user_id == current_user.id)
+        .order_by(ChatThread.created_at.desc())
         .all()
     )
-    last_by_thread: dict[UUID, ChatMessage] = {m.thread_id: m for m in latest_messages}
-
-    # Unread count for current user (single grouped query).
-    unread_rows = (
-        db.query(ChatMessage.thread_id, sa.func.count(ChatMessage.id))
-        .filter(
-            ChatMessage.thread_id.in_(thread_ids),
-            ChatMessage.sender_user_id != current_user.id,
-            ChatMessage.is_read.is_(False),
-        )
-        .group_by(ChatMessage.thread_id)
-        .all()
-    )
-    unread_by_thread: dict[UUID, int] = {row[0]: int(row[1]) for row in unread_rows}
-
-    # Sort by latest message time (or thread.created_at when empty).
-    items_with_sort_key: list[tuple[datetime, ChatThreadItemResponse]] = []
-    for t in threads:
-        last_msg = last_by_thread.get(t.id)
-        last_ts = last_msg.created_at if last_msg else t.created_at
-        item = _thread_item_from_thread(
-            thread=t,
-            last_message=last_msg,
-            unread_count=unread_by_thread.get(t.id, 0),
-        )
-        items_with_sort_key.append((last_ts, item))
-
-    items_with_sort_key.sort(key=lambda x: x[0], reverse=True)
-    start = (page - 1) * page_size
-    end = start + page_size
-    paged = [item for _, item in items_with_sort_key[start:end]]
-
-    return ChatThreadListResponse(threads=paged, total=total, page=page, page_size=page_size)
+    return ChatThreadListResponse(threads=[_thread_response(db, thread) for thread in threads])
 
 
-@router.get("/threads/{id}", response_model=ChatThreadDetailResponse)
-def get_thread(
-    id: str,
-    page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=100),
+@router.get("/threads/{thread_id}/messages", response_model=ChatMessageListResponse)
+def list_thread_messages(
+    thread_id: UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        thread_uuid = UUID(id)
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid thread id")
-
-    thread = db.query(ChatThread).filter(ChatThread.id == thread_uuid).first()
-    if not thread:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found")
-
-    is_participant = str(thread.user_one_id) == str(current_user.id) or str(thread.user_two_id) == str(current_user.id)
-    if not is_participant:
+    if not _is_thread_member(db, thread_id, current_user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have access to this thread")
 
-    messages_q = db.query(ChatMessage).filter(ChatMessage.thread_id == thread_uuid).order_by(ChatMessage.created_at.desc())
-    total = messages_q.count()
-    messages = messages_q.offset((page - 1) * page_size).limit(page_size).all()
-
-    last_message = db.query(ChatMessage).filter(ChatMessage.thread_id == thread_uuid).order_by(ChatMessage.created_at.desc()).first()
-    unread_count = (
-        db.query(sa.func.count(ChatMessage.id))
-        .filter(
-            ChatMessage.thread_id == thread_uuid,
-            ChatMessage.sender_user_id != current_user.id,
-            ChatMessage.is_read.is_(False),
-        )
-        .scalar()
+    messages = (
+        db.query(ChatMessage)
+        .filter(ChatMessage.thread_id == thread_id)
+        .order_by(ChatMessage.created_at.asc())
+        .all()
     )
-
-    thread_item = _thread_item_from_thread(
-        thread=thread,
-        last_message=last_message,
-        unread_count=int(unread_count or 0),
-    )
-
-    return ChatThreadDetailResponse(
-        thread=thread_item,
+    return ChatMessageListResponse(
         messages=[
             ChatMessageResponse(
-                id=m.id,
-                thread_id=m.thread_id,
-                sender_user_id=m.sender_user_id,
-                message_text=m.message_text,
-                file_id=m.file_id,
-                is_read=m.is_read,
-                created_at=m.created_at,
+                id=message.id,
+                thread_id=message.thread_id,
+                sender_user_id=message.sender_user_id,
+                message_text=message.message_text,
+                file_id=message.file_id,
+                message_type=message.message_type or "text",
+                approval_status=message.approval_status,
+                is_read=message.is_read,
+                created_at=message.created_at,
             )
-            for m in messages
-        ],
-        total=total,
-        page=page,
-        page_size=page_size,
+            for message in messages
+        ]
     )
 
 
-@router.post("/threads", response_model=ChatThreadItemResponse, status_code=status.HTTP_201_CREATED)
-def create_or_get_thread(
-    data: CreateThreadRequest,
+@router.post("/threads/{thread_id}/messages", response_model=ChatMessageResponse, status_code=status.HTTP_201_CREATED)
+async def create_thread_message(
+    thread_id: UUID,
+    payload: CreateMessageRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if str(data.other_user_id) == str(current_user.id):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot create a thread with yourself")
+    if not _is_thread_member(db, thread_id, current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have access to this thread")
 
-    user_one_id = min(current_user.id, data.other_user_id)
-    user_two_id = max(current_user.id, data.other_user_id)
-
-    thread = (
-        db.query(ChatThread)
-        .filter(ChatThread.user_one_id == user_one_id, ChatThread.user_two_id == user_two_id)
-        .first()
-    )
-
-    if not thread:
-        thread = ChatThread(user_one_id=user_one_id, user_two_id=user_two_id)
-        db.add(thread)
-        db.commit()
-        db.refresh(thread)
-
-    return _thread_item_from_thread(thread=thread, last_message=None, unread_count=0)
-
-
-@router.post("/messages", response_model=ChatMessageResponse, status_code=status.HTTP_201_CREATED)
-async def send_message(
-    data: CreateMessageRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    thread = db.query(ChatThread).filter(ChatThread.id == data.thread_id).first()
+    thread = db.query(ChatThread).filter(ChatThread.id == thread_id).first()
     if not thread:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found")
 
-    is_participant = str(thread.user_one_id) == str(current_user.id) or str(thread.user_two_id) == str(current_user.id)
-    if not is_participant:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have access to this thread")
-
-    message_text = data.message_text
-    if message_text is not None and message_text.strip() == "":
-        message_text = None
-
     message = ChatMessage(
-        thread_id=data.thread_id,
+        thread_id=thread_id,
         sender_user_id=current_user.id,
-        message_text=message_text,
-        file_id=data.file_id,
+        message_text=payload.message_text.strip() if payload.message_text else None,
+        message_type=(payload.message_type or "text").strip() or "text",
+        approval_status=None,
         is_read=False,
     )
     db.add(message)
@@ -264,11 +232,8 @@ async def send_message(
     db.refresh(message)
 
     await connection_manager.broadcast_to_thread(
-        thread_id=str(message.thread_id),
-        payload={
-            "type": "new_message",
-            "message": _serialize_chat_message(message),
-        },
+        thread_id=str(thread_id),
+        payload={"type": "new_message", "message": _serialize_chat_message(message)},
     )
 
     return ChatMessageResponse(
@@ -277,51 +242,42 @@ async def send_message(
         sender_user_id=message.sender_user_id,
         message_text=message.message_text,
         file_id=message.file_id,
+        message_type=message.message_type or "text",
+        approval_status=message.approval_status,
         is_read=message.is_read,
         created_at=message.created_at,
     )
 
 
-@router.patch("/messages/{id}/read", response_model=ChatMessageResponse)
-async def mark_message_read(
-    id: str,
+@router.post("/threads/{thread_id}/approval-request", response_model=ChatMessageResponse, status_code=status.HTTP_201_CREATED)
+async def create_approval_request(
+    thread_id: UUID,
+    payload: ApprovalRequestCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        msg_uuid = UUID(id)
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid message id")
+    if not _is_thread_member(db, thread_id, current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have access to this thread")
 
-    message = db.query(ChatMessage).filter(ChatMessage.id == msg_uuid).first()
-    if not message:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
-
-    thread = db.query(ChatThread).filter(ChatThread.id == message.thread_id).first()
+    thread = db.query(ChatThread).filter(ChatThread.id == thread_id).first()
     if not thread:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found")
 
-    is_participant = str(thread.user_one_id) == str(current_user.id) or str(thread.user_two_id) == str(current_user.id)
-    if not is_participant:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have access to this thread")
-
-    # PRD semantics: mark read is for the non-sender recipient.
-    if str(message.sender_user_id) == str(current_user.id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sender cannot mark their own message as read")
-
-    if message.is_read is False:
-        message.is_read = True
-        db.add(message)
-        db.commit()
-        db.refresh(message)
+    message = ChatMessage(
+        thread_id=thread_id,
+        sender_user_id=current_user.id,
+        message_text=f"{payload.request_type}|{payload.title}|{payload.description}",
+        message_type="approval",
+        approval_status="pending",
+        is_read=False,
+    )
+    db.add(message)
+    db.commit()
+    db.refresh(message)
 
     await connection_manager.broadcast_to_thread(
-        thread_id=str(message.thread_id),
-        payload={
-            "type": "read_receipt",
-            "message_id": str(message.id),
-            "reader_user_id": str(current_user.id),
-        },
+        thread_id=str(thread_id),
+        payload={"type": "new_message", "message": _serialize_chat_message(message)},
     )
 
     return ChatMessageResponse(
@@ -330,6 +286,48 @@ async def mark_message_read(
         sender_user_id=message.sender_user_id,
         message_text=message.message_text,
         file_id=message.file_id,
+        message_type=message.message_type,
+        approval_status=message.approval_status,
+        is_read=message.is_read,
+        created_at=message.created_at,
+    )
+
+
+@router.patch("/messages/{message_id}/approval", response_model=ChatMessageResponse)
+async def patch_approval_status(
+    message_id: UUID,
+    payload: ApprovalStatusPatch,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    message = db.query(ChatMessage).filter(ChatMessage.id == message_id).first()
+    if not message:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
+
+    if str(message.sender_user_id) == str(current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sender cannot approve their own request")
+
+    if not _is_thread_member(db, message.thread_id, current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have access to this thread")
+
+    message.approval_status = payload.status
+    db.add(message)
+    db.commit()
+    db.refresh(message)
+
+    await connection_manager.broadcast_to_thread(
+        thread_id=str(message.thread_id),
+        payload={"type": "message_updated", "message": _serialize_chat_message(message)},
+    )
+
+    return ChatMessageResponse(
+        id=message.id,
+        thread_id=message.thread_id,
+        sender_user_id=message.sender_user_id,
+        message_text=message.message_text,
+        file_id=message.file_id,
+        message_type=message.message_type or "text",
+        approval_status=message.approval_status,
         is_read=message.is_read,
         created_at=message.created_at,
     )
@@ -343,9 +341,6 @@ async def ws_chat(websocket: WebSocket, thread_id: str):
         return
 
     db: Session = SessionLocal()
-    user: User | None = None
-    thread: ChatThread | None = None
-
     try:
         await websocket.accept()
 
@@ -360,18 +355,12 @@ async def ws_chat(websocket: WebSocket, thread_id: str):
             await websocket.close(code=status.WS_1003_UNSUPPORTED_DATA)
             return
 
-        thread = db.query(ChatThread).filter(ChatThread.id == thread_uuid).first()
-        if not thread:
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-            return
-
-        is_participant = str(thread.user_one_id) == str(user.id) or str(thread.user_two_id) == str(user.id)
-        if not is_participant:
+        if not _is_thread_member(db, thread_uuid, user.id):
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
 
         user_id_str = str(user.id)
-        await connection_manager.connect_chat(thread_id=str(thread.id), user_id=user_id_str, websocket=websocket)
+        await connection_manager.connect_chat(thread_id=str(thread_uuid), user_id=user_id_str, websocket=websocket)
 
         while True:
             raw = await websocket.receive_text()
@@ -380,20 +369,17 @@ async def ws_chat(websocket: WebSocket, thread_id: str):
             except Exception:
                 continue
 
-            event_type = data.get("type")
-            if event_type != "typing":
+            if data.get("type") != "typing":
                 continue
 
-            is_typing = bool(data.get("is_typing", True))
-            typing_payload = {
-                "type": "typing",
-                "thread_id": str(thread.id),
-                "user_id": user_id_str,
-                "is_typing": is_typing,
-            }
             await connection_manager.broadcast_typing(
-                thread_id=str(thread.id),
-                typing_payload=typing_payload,
+                thread_id=str(thread_uuid),
+                typing_payload={
+                    "type": "typing",
+                    "thread_id": str(thread_uuid),
+                    "user_id": user_id_str,
+                    "is_typing": bool(data.get("is_typing", True)),
+                },
                 exclude_user_id=user_id_str,
             )
 
