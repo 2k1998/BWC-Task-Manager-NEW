@@ -64,10 +64,7 @@ function normalizeMessages(data: unknown, threadId: string): ChatMessage[] {
         message_text: typeof row.message_text === 'string' ? row.message_text : '',
         file_id: typeof row.file_id === 'string' ? row.file_id : null,
         message_type: typeof row.message_type === 'string' ? row.message_type : 'text',
-        approval_status:
-          row.approval_status === 'approved' || row.approval_status === 'declined' || row.approval_status === 'pending'
-            ? row.approval_status
-            : null,
+        approval_status: (row.approval_status as 'pending' | 'approved' | 'declined' | null) ?? null,
         is_read: Boolean(row.is_read),
         created_at: typeof row.created_at === 'string' ? row.created_at : new Date().toISOString(),
       };
