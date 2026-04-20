@@ -10,7 +10,7 @@ import apiClient from '@/lib/apiClient';
 import { User } from '@/lib/types';
 
 type AdminTab = 'users' | 'departments';
-type Department = { id: string; name: string };
+type Department = { id: string; name: string; created_at?: string };
 
 export default function AdminUsersPage() {
   const [activeTab, setActiveTab] = useState<AdminTab>('users');
@@ -41,8 +41,13 @@ export default function AdminUsersPage() {
 
   useEffect(() => {
     fetchUsers();
-    fetchDepartments();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'departments') {
+      fetchDepartments();
+    }
+  }, [activeTab]);
 
   const fetchUsers = async () => {
     try {
@@ -61,12 +66,24 @@ export default function AdminUsersPage() {
     try {
       setDepartmentsLoading(true);
       const res = await apiClient.get('/departments');
-      setDepartments(res.data?.departments || []);
+      const payload = Array.isArray(res.data) ? res.data : (res.data?.departments || []);
+      setDepartments(payload);
     } catch (err) {
       console.error('Failed to load departments:', err);
       toast.error('Failed to load departments');
     } finally {
       setDepartmentsLoading(false);
+    }
+  };
+
+  const handleDeleteDepartment = async (departmentId: string) => {
+    try {
+      await apiClient.delete(`/departments/${departmentId}`);
+      setDepartments((prev) => prev.filter((department) => department.id !== departmentId));
+      toast.success('Department deleted successfully');
+    } catch (err) {
+      console.error('Failed to delete department:', err);
+      toast.error('Failed to delete department');
     }
   };
 
@@ -338,12 +355,22 @@ export default function AdminUsersPage() {
                     <thead className="bg-gray-50">
                       <tr>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {departments.map((department) => (
                         <tr key={department.id}>
                           <td className="px-4 py-3 text-sm text-gray-700">{department.name}</td>
+                          <td className="px-4 py-3 text-right">
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteDepartment(department.id)}
+                              className="text-red-600 hover:text-red-800 bg-red-50 px-3 py-1 rounded hover:bg-red-100 transition-colors"
+                            >
+                              Delete
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
