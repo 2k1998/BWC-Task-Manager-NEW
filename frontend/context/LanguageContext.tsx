@@ -1,7 +1,6 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import apiClient from "@/lib/apiClient";
 import { useAuth } from "@/context/AuthContext";
 import type { ProfileMeResponse } from "@/lib/types";
@@ -18,7 +17,6 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguageState] = useState<Language>("en");
   const { user } = useAuth();
-  const router = useRouter();
 
   useEffect(() => {
     const loadLanguage = async () => {
@@ -37,7 +35,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         setLanguageState(profileLanguage);
         document.cookie = `NEXT_LOCALE=${profileLanguage};path=/;max-age=31536000`;
         if (currentCookieLocale !== profileLanguage) {
-          router.refresh();
+          window.location.reload();
         }
       } catch {
         setLanguageState("en");
@@ -45,16 +43,16 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     };
 
     void loadLanguage();
-  }, [user, router]);
+  }, [user]);
 
   const setLanguage = useCallback((lang: Language) => {
     void (async () => {
       await apiClient.put("/profile/me", { language: lang });
       document.cookie = `NEXT_LOCALE=${lang};path=/;max-age=31536000`;
       setLanguageState(lang);
-      router.refresh();
+      window.location.reload();
     })();
-  }, [router]);
+  }, []);
 
   const value = useMemo(
     () => ({

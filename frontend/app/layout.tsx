@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import { NextIntlClientProvider } from "next-intl";
-import { getLocale, getMessages } from "next-intl/server";
 import { Toaster } from "sonner";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import IntlProvider from "@/components/IntlProvider";
 import { AuthProvider } from "@/context/AuthContext";
 import { LanguageProvider } from "@/context/LanguageContext";
 import { NotificationProvider } from "@/context/NotificationContext";
@@ -14,18 +13,15 @@ export const metadata: Metadata = {
   description: "Task management system for BWC",
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const locale = await getLocale();
-  const messages = await getMessages();
-
   return (
-    <html lang={locale} className="max-w-full overflow-x-hidden">
+    <html lang="en" className="max-w-full overflow-x-hidden">
       <body className="antialiased max-w-full overflow-x-hidden">
-        <NextIntlClientProvider locale={locale} messages={messages}>
+        <IntlProvider>
           <ErrorBoundary>
             <AuthProvider>
               <LanguageProvider>
@@ -37,7 +33,7 @@ export default async function RootLayout({
               </LanguageProvider>
             </AuthProvider>
           </ErrorBoundary>
-        </NextIntlClientProvider>
+        </IntlProvider>
         <Toaster position="top-right" richColors />
       </body>
     </html>
