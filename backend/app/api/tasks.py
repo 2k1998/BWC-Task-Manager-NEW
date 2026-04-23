@@ -157,7 +157,6 @@ def create_task(
             description=task_data.description,
             company_id=task_data.company_id,
             department=task_data.department,
-            priority=task_data.priority,
             urgency_label=urgency_label,
             start_date=task_data.start_date,
             deadline=task_data.deadline,

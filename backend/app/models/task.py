@@ -15,7 +15,6 @@ class Task(BaseModel):
     description = Column(Text, nullable=True)
     company_id = Column(UUID(as_uuid=True), ForeignKey('companies.id', ondelete='RESTRICT'), nullable=False)
     department = Column(Text, nullable=False)  # TEXT field, validated against departments
-    priority = Column(Text, nullable=False)
     urgency_label = Column(Text, nullable=False)
     start_date = Column(Date, nullable=False)
     deadline = Column(Date, nullable=False)

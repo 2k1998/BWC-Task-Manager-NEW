@@ -27,7 +27,6 @@ class TaskCreate(BaseModel):
     description: Optional[str] = None
     company_id: UUID
     department: str = Field(..., min_length=1)
-    priority: str = Field(..., min_length=1)
     urgency_label: Optional[str] = None  # Optional, can be auto-set to Orange
     start_date: date
     deadline: date
@@ -63,7 +62,6 @@ class TaskCreate(BaseModel):
                 "description": "Complete review of Q4 financial statements",
                 "company_id": "123e4567-e89b-12d3-a456-426614174000",
                 "department": "Finance",
-                "priority": "High",
                 "urgency_label": "Urgent & Important",
                 "start_date": "2026-02-10",
                 "deadline": "2026-02-15",
@@ -78,7 +76,6 @@ class TaskUpdate(BaseModel):
     description: Optional[str] = None
     company_id: Optional[UUID] = None
     department: Optional[str] = Field(None, min_length=1)
-    priority: Optional[str] = Field(None, min_length=1)
     urgency_label: Optional[str] = None
     start_date: Optional[date] = None
     deadline: Optional[date] = None
@@ -120,7 +117,6 @@ class TaskResponse(BaseModel):
     description: Optional[str]
     company_id: UUID
     department: str
-    priority: str
     urgency_label: str
     start_date: date
     deadline: date
