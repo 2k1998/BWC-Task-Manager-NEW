@@ -50,6 +50,13 @@ router = APIRouter(prefix="/tasks", tags=["Tasks"])
 from app.utils.visibility import can_user_view_task, get_subordinate_ids
 
 
+def _not_soft_deleted_filter():
+    """Exclude soft-deleted tasks across legacy/new deletion columns."""
+    if hasattr(Task, "is_deleted"):
+        return or_(Task.is_deleted == False, Task.is_deleted == None)
+    return Task.deleted_at.is_(None)
+
+
 def _task_snapshot(task: Task) -> Dict[str, Any]:
     return {
         "id": str(task.id),
@@ -90,7 +97,7 @@ def build_visibility_filter(current_user: User, db: Session):
     if subordinate_ids:
         filters.append(Task.assigned_user_id.in_(subordinate_ids))
     
-    return and_(Task.deleted_at.is_(None), or_(*filters))
+    return and_(_not_soft_deleted_filter(), or_(*filters))
 
 
 def _can_access_task_comments(task: Task, current_user: User) -> bool:
@@ -224,7 +231,7 @@ def list_tasks(
     Users see only tasks they can access based on visibility rules.
     """
     visibility_filter = build_visibility_filter(current_user, db)
-    query = db.query(Task).filter(visibility_filter)
+    query = db.query(Task).filter(visibility_filter).filter(_not_soft_deleted_filter())
     
     if status_filter:
         query = query.filter(Task.status == status_filter)

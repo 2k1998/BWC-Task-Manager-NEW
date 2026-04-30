@@ -68,9 +68,17 @@ def _get_scope_user_ids(db: Session, current_user: User) -> Optional[list[UUID]]
 
 def _build_task_scope_filter(db: Session, current_user: User):
     scope_user_ids = _get_scope_user_ids(db, current_user)
+    if hasattr(Task, "is_deleted"):
+        not_deleted_filter = or_(Task.is_deleted == False, Task.is_deleted == None)
+    else:
+        not_deleted_filter = Task.deleted_at.is_(None)
+
     if scope_user_ids is None:
-        return True
-    return or_(Task.owner_user_id.in_(scope_user_ids), Task.assigned_user_id.in_(scope_user_ids))
+        return not_deleted_filter
+    return and_(
+        not_deleted_filter,
+        or_(Task.owner_user_id.in_(scope_user_ids), Task.assigned_user_id.in_(scope_user_ids)),
+    )
 
 
 def _active_tasks_filter():
