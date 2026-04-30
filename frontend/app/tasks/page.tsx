@@ -506,6 +506,9 @@ function TasksPageContent() {
             currentUser={currentUser} 
             onStatusChange={handleStatusChange}
             onTaskRefresh={fetchTasks}
+            onTaskDeleted={(deletedTaskId) =>
+              setTasks((prev) => prev.filter((task) => task.id !== deletedTaskId))
+            }
           />
         </div>
       </div>

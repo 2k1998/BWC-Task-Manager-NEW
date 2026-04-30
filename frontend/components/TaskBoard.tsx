@@ -15,6 +15,7 @@ interface TaskBoardProps {
   currentUser: User | null;
   onStatusChange: (taskId: string, newStatus: string) => Promise<void>;
   onTaskRefresh: () => Promise<void>;
+  onTaskDeleted: (deletedTaskId: string) => void;
 }
 
 const COLUMNS = [
@@ -26,7 +27,7 @@ const COLUMNS = [
   'Completed',
 ];
 
-export default function TaskBoard({ tasks, currentUser, onStatusChange, onTaskRefresh }: TaskBoardProps) {
+export default function TaskBoard({ tasks, currentUser, onStatusChange, onTaskRefresh, onTaskDeleted }: TaskBoardProps) {
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
 
   const tasksByStatus = COLUMNS.reduce((acc, status) => {
@@ -100,6 +101,7 @@ export default function TaskBoard({ tasks, currentUser, onStatusChange, onTaskRe
                 onDragStart={(e) => handleDragStart(e, task.id)}
                 onStatusChange={onStatusChange}
                 onTaskRefresh={onTaskRefresh}
+                onTaskDeleted={onTaskDeleted}
               />
             ))}
           </div>
@@ -115,12 +117,14 @@ function BoardCard({
   onDragStart,
   onStatusChange,
   onTaskRefresh,
+  onTaskDeleted,
 }: {
   task: Task;
   currentUser: User | null;
   onDragStart: (e: React.DragEvent) => void;
   onStatusChange: (taskId: string, newStatus: string) => Promise<void>;
   onTaskRefresh: () => Promise<void>;
+  onTaskDeleted: (deletedTaskId: string) => void;
 }) {
   const [showMenu, setShowMenu] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -199,6 +203,7 @@ function BoardCard({
     try {
       setDeleting(true);
       await apiClient.delete(`/tasks/${task.id}`);
+      onTaskDeleted(task.id);
       setShowDeleteModal(false);
       toast.success('Task deleted successfully');
       await onTaskRefresh();
