@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone, timedelta
+from typing import List
 import secrets
 
 from app.core.database import get_db
@@ -11,6 +12,8 @@ from app.models.user import User
 from app.models.auth import AuthRefreshToken
 from app.schemas.auth import LoginRequest, TokenResponse, RefreshRequest
 from app.schemas.user import UserResponse
+from app.schemas.permission import ModulePermissionResponse
+from app.utils.permissions import get_user_module_permissions_rows
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -131,6 +134,15 @@ def get_me(current_user: User = Depends(get_current_user)):
     Get current user.
     """
     return current_user
+
+
+@router.get("/me/module-permissions", response_model=List[ModulePermissionResponse])
+def get_my_module_permissions(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Module access levels for the authenticated user (for UI gating)."""
+    return get_user_module_permissions_rows(db, current_user.id)
 
 
 @router.post("/logout")

@@ -10,8 +10,19 @@ import { getErrorMessage } from '@/lib/errorHandler';
 import type { ProjectListResponse, Company } from '@/lib/types';
 import { Button, LoadingSkeleton, ErrorState, EmptyState } from '@/components/ui';
 import { getSavedViews, saveView, deleteView, type SavedView } from '@/lib/savedViews';
+import { useAuth } from '@/context/AuthContext';
+import { usePermissions } from '@/context/PermissionsContext';
+import { useHasPermission } from '@/hooks/useHasPermission';
+import { useRequireModuleView } from '@/hooks/useRequireModuleView';
 
 function ProjectsPageContent() {
+  const { isLoading: authLoading } = useAuth();
+  const { isLoading: permLoading } = usePermissions();
+  useRequireModuleView('projects');
+  const canViewProjects = useHasPermission('projects', 'view');
+  const canEditProjects = useHasPermission('projects', 'edit');
+  const canDeleteProjects = useHasPermission('projects', 'delete');
+
   const [projects, setProjects] = useState<ProjectListResponse | null>(null);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,13 +45,13 @@ function ProjectsPageContent() {
   }, []);
 
   useEffect(() => {
-    if (searchParams.get('action') === 'new') {
+    if (searchParams.get('action') === 'new' && canEditProjects) {
       setShowCreateModal(true);
       const newUrl = new URL(window.location.href);
       newUrl.searchParams.delete('action');
       router.replace(newUrl.pathname + newUrl.search, { scroll: false });
     }
-  }, [searchParams, router]);
+  }, [searchParams, router, canEditProjects]);
 
   useEffect(() => {
     fetchProjects();
@@ -108,11 +119,26 @@ function ProjectsPageContent() {
     setSavedViews(prev => prev.filter(v => v.id !== id));
   };
 
+  if (authLoading || permLoading) {
+    return (
+      <ProtectedLayout>
+        <div className="p-6">
+          <LoadingSkeleton variant="list" count={6} />
+        </div>
+      </ProtectedLayout>
+    );
+  }
+
+  if (!canViewProjects) {
+    return null;
+  }
+
   return (
     <ProtectedLayout>
       <div className="space-y-6">
         <div className="flex justify-between items-center">
             <h1 className="text-3xl font-bold text-gray-900">Projects</h1>
+            {canEditProjects && (
             <Button 
                 variant="primary" 
                 onClick={() => setShowCreateModal(true)}
@@ -123,6 +149,7 @@ function ProjectsPageContent() {
                 </svg>
                 Create Project
             </Button>
+            )}
         </div>
 
         <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
@@ -177,7 +204,7 @@ function ProjectsPageContent() {
                    Save Current View
                  </Button>
               )}
-              {savedViews.length > 0 && (
+              {savedViews.length > 0 && canDeleteProjects && (
                 <div className="group relative">
                   <span className="text-xs text-red-500 cursor-pointer hover:underline px-2 block sm:inline">Delete lists</span>
                   <div className="hidden group-hover:block absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 w-48 py-1">
@@ -251,12 +278,12 @@ function ProjectsPageContent() {
         {!loading && !error && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {projects?.projects.map((project) => (
-              <ProjectCard key={project.id} project={project} />
+              <ProjectCard key={project.id} project={project} showStatusMenu={canEditProjects} />
             ))}
           </div>
         )}
 
-        {showCreateModal && (
+        {showCreateModal && canEditProjects && (
             <CreateProjectModal 
                 onClose={() => setShowCreateModal(false)}
                 onSuccess={() => {

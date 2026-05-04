@@ -4,6 +4,10 @@ import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import ProtectedLayout from '@/components/ProtectedLayout';
 import { EmptyState, ErrorState, LoadingSkeleton } from '@/components/ui';
+import { useAuth } from '@/context/AuthContext';
+import { usePermissions } from '@/context/PermissionsContext';
+import { useHasPermission } from '@/hooks/useHasPermission';
+import { useRequireModuleView } from '@/hooks/useRequireModuleView';
 import apiClient from '@/lib/apiClient';
 import { getErrorMessage } from '@/lib/errorHandler';
 import type { DocumentListResponse } from '@/lib/types';
@@ -11,11 +15,17 @@ import type { DocumentListResponse } from '@/lib/types';
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 
 export default function DocumentsPage() {
+  const { isLoading: authLoading } = useAuth();
+  const { isLoading: permLoading } = usePermissions();
+  useRequireModuleView('documents');
+  const canViewDocuments = useHasPermission('documents', 'view');
+  const canEditDocuments = useHasPermission('documents', 'edit');
+  const canDeleteDocuments = useHasPermission('documents', 'delete');
+
   const [documents, setDocuments] = useState<DocumentListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [uploading, setUploading] = useState(false);
-  const [canDelete, setCanDelete] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -36,6 +46,7 @@ export default function DocumentsPage() {
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!canEditDocuments) return;
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -82,43 +93,37 @@ export default function DocumentsPage() {
   };
 
   const handleDelete = async (documentId: string) => {
+    if (!canDeleteDocuments) return;
     if (!confirm('Are you sure you want to delete this document?')) return;
 
     try {
       await apiClient.delete(`/documents/${documentId}`);
       await fetchDocuments();
-    } catch (err: any) {
-      if (err.response?.status === 403) {
-        setCanDelete(false);
-        // Interceptor handles the toast
-      } else {
-        toast.error(getErrorMessage(err, 'Failed to delete document'));
-      }
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Failed to delete document'));
     }
   };
 
-  // Test delete permission on first document
-  useEffect(() => {
-    const testDeletePermission = async () => {
-      if (documents && documents.documents.length > 0) {
-        try {
-          await apiClient.delete(`/documents/${documents.documents[0].id}`, {
-            validateStatus: (status) => status === 403 || status === 200,
-          });
-          setCanDelete(true);
-        } catch (err: any) {
-          setCanDelete(err.response?.status !== 403);
-        }
-      }
-    };
-    testDeletePermission();
-  }, [documents]);
+  if (authLoading || permLoading) {
+    return (
+      <ProtectedLayout>
+        <div className="p-6">
+          <LoadingSkeleton variant="table" count={5} />
+        </div>
+      </ProtectedLayout>
+    );
+  }
+
+  if (!canViewDocuments) {
+    return null;
+  }
 
   return (
     <ProtectedLayout>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold text-gray-900">Documents</h1>
+          {canEditDocuments && (
           <div>
             <input
               ref={fileInputRef}
@@ -136,6 +141,7 @@ export default function DocumentsPage() {
               {uploading ? 'Uploading...' : 'Upload Document'}
             </label>
           </div>
+          )}
         </div>
 
         {loading && <LoadingSkeleton variant="table" count={5} />}
@@ -190,7 +196,7 @@ export default function DocumentsPage() {
                     >
                       Download
                     </button>
-                    {canDelete && (
+                    {canDeleteDocuments && (
                       <button
                         onClick={() => handleDelete(doc.id)}
                         className="text-red-600 hover:text-red-900"

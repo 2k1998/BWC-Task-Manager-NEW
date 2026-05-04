@@ -2,7 +2,7 @@
 from app.models.user import User
 from app.models.auth import AuthRefreshToken
 from app.models.page import Page
-from app.models.permission import UserPagePermission
+from app.models.permission import UserPagePermission, UserPermission
 from app.models.audit import UserAuditLog
 from app.models.company import Company
 from app.models.department import Department
@@ -35,6 +35,7 @@ __all__ = [
     "AuthRefreshToken",
     "Page",
     "UserPagePermission",
+    "UserPermission",
     "UserAuditLog",
     "Company",
     "Department",

@@ -8,6 +8,9 @@ import { getErrorMessage } from '@/lib/errorHandler';
 import ProtectedLayout from '@/components/ProtectedLayout';
 import { Badge, Button, Card, EmptyState, ErrorState, Input, LoadingSkeleton, Modal, Table } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
+import { usePermissions } from '@/context/PermissionsContext';
+import { useHasPermission } from '@/hooks/useHasPermission';
+import { useRequireModuleView } from '@/hooks/useRequireModuleView';
 import type { Contact, ContactListResponse, DailyCall, DailyCallListResponse } from '@/lib/types';
 
 import CreateContactModal from '@/components/modals/CreateContactModal';
@@ -36,7 +39,12 @@ export default function ContactsPage() {
   const tContacts = useTranslations('Contacts');
   const tDaily = useTranslations('DailyCalls');
   const tCommon = useTranslations('Common');
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
+  const { isLoading: permLoading } = usePermissions();
+  useRequireModuleView('contacts');
+  const canViewContacts = useHasPermission('contacts', 'view');
+  const canEditContacts = useHasPermission('contacts', 'edit');
+  const canDeleteContacts = useHasPermission('contacts', 'delete');
 
   const [activeTab, setActiveTab] = useState<ContactsTab>('all');
 
@@ -132,6 +140,18 @@ export default function ContactsPage() {
 
   if (!user) return null;
 
+  if (authLoading || permLoading) {
+    return (
+      <ProtectedLayout>
+        <LoadingSkeleton variant="table" count={6} />
+      </ProtectedLayout>
+    );
+  }
+
+  if (!canViewContacts) {
+    return null;
+  }
+
   if (loading && contacts.length === 0 && dailyCalls.length === 0) {
     return (
       <ProtectedLayout>
@@ -197,9 +217,12 @@ export default function ContactsPage() {
               </div>
 
               <div className="flex gap-3 flex-wrap w-full sm:w-auto">
+                {canEditContacts && (
                 <Button variant="secondary" onClick={() => setShowImportCsv(true)} aria-label={tContacts('importCsv')} className="w-full sm:w-auto">
                   {tContacts('importCsv')}
                 </Button>
+                )}
+                {canEditContacts && (
                 <Button
                   variant="primary"
                   onClick={() => setShowCreateContact(true)}
@@ -208,6 +231,7 @@ export default function ContactsPage() {
                 >
                   {tContacts('newContact')}
                 </Button>
+                )}
               </div>
             </div>
 
@@ -215,9 +239,11 @@ export default function ContactsPage() {
               <EmptyState
                 title="No contacts yet. Add your first contact."
                 action={
+                  canEditContacts ? (
                   <Button onClick={() => setShowCreateContact(true)} variant="primary">
                     New Contact
                   </Button>
+                  ) : undefined
                 }
               />
             ) : filteredContacts.length === 0 ? (
@@ -243,14 +269,17 @@ export default function ContactsPage() {
                           {c.company_name || <span className="text-gray-400 italic">Not set</span>}
                         </div>
                         <div className="mt-4 grid grid-cols-2 gap-2">
+                          {canEditContacts && (
                           <Button variant="secondary" size="sm" className="bg-white" onClick={() => setEditContact(c)}>
                             {tCommon('edit')}
                           </Button>
-                          {!deleteBlocked ? (
+                          )}
+                          {canDeleteContacts && !deleteBlocked && (
                             <Button variant="destructive" size="sm" onClick={() => setDeleteContact(c)}>
                               {tCommon('delete')}
                             </Button>
-                          ) : (
+                          )}
+                          {canDeleteContacts && deleteBlocked && (
                             <Button variant="secondary" size="sm" className="bg-white" disabled>
                               {tCommon('delete')}
                             </Button>
@@ -291,9 +320,12 @@ export default function ContactsPage() {
                               <td className="px-6 py-4 text-sm text-gray-600">{c.company_name || <span className="text-gray-400 italic">Not set</span>}</td>
                               <td className="px-6 py-4">
                                 <div className="flex flex-wrap justify-end gap-2">
+                                {canEditContacts && (
                                 <Button variant="secondary" size="sm" className="bg-white" onClick={() => setEditContact(c)}>
                                   {tCommon('edit')}
                                 </Button>
+                                )}
+                                {canEditContacts && (
                                 <Button
                                   variant="secondary"
                                   size="sm"
@@ -302,7 +334,8 @@ export default function ContactsPage() {
                                 >
                                   Add to Daily Calls
                                 </Button>
-                                {!deleteBlocked && (
+                                )}
+                                {canDeleteContacts && !deleteBlocked && (
                                   <Button
                                     variant="destructive"
                                     size="sm"
@@ -331,6 +364,7 @@ export default function ContactsPage() {
               <EmptyState
                 title="No calls scheduled. Add contacts and schedule your first call."
                 action={
+                  canEditContacts ? (
                   <Button
                     onClick={() => {
                       setActiveTab('all');
@@ -340,6 +374,7 @@ export default function ContactsPage() {
                   >
                     New Contact
                   </Button>
+                  ) : undefined
                 }
               />
             ) : (
@@ -373,6 +408,7 @@ export default function ContactsPage() {
                           {notesPreview}
                         </div>
                         <div className="mt-4 grid grid-cols-2 gap-2">
+                          {canEditContacts && (
                           <Button
                             variant="secondary"
                             size="sm"
@@ -388,9 +424,12 @@ export default function ContactsPage() {
                           >
                             {tCommon('edit')}
                           </Button>
+                          )}
+                          {canDeleteContacts && (
                           <Button variant="destructive" size="sm" onClick={() => setDeleteDailyCall(dc)}>
                             {tCommon('delete')}
                           </Button>
+                          )}
                         </div>
                       </div>
                     );
@@ -431,6 +470,7 @@ export default function ContactsPage() {
                               </td>
                               <td className="px-6 py-4">
                                 <div className="flex flex-wrap justify-end gap-2">
+                                {canEditContacts && (
                                 <Button
                                   variant="secondary"
                                   size="sm"
@@ -446,12 +486,17 @@ export default function ContactsPage() {
                                 >
                                   {tCommon('edit')}
                                 </Button>
+                                )}
+                                {canEditContacts && (
                                 <Button variant="secondary" size="sm" className="bg-white" onClick={() => setCallNotesModal({ open: true, dailyCallId: dc.id })}>
                                   {tDaily('callNotes')}
                                 </Button>
+                                )}
+                                {canDeleteContacts && (
                                 <Button variant="destructive" size="sm" onClick={() => setDeleteDailyCall(dc)}>
                                   {tCommon('delete')}
                                 </Button>
+                                )}
                                 </div>
                               </td>
                             </tr>
@@ -466,7 +511,7 @@ export default function ContactsPage() {
           </div>
         )}
 
-        {showCreateContact && (
+        {showCreateContact && canEditContacts && (
           <CreateContactModal
             onClose={() => setShowCreateContact(false)}
             onSuccess={async () => {
@@ -476,7 +521,7 @@ export default function ContactsPage() {
           />
         )}
 
-        {editContact && (
+        {editContact && canEditContacts && (
           <EditContactModal
             contact={editContact}
             onClose={() => setEditContact(null)}
@@ -487,7 +532,7 @@ export default function ContactsPage() {
           />
         )}
 
-        {showImportCsv && (
+        {showImportCsv && canEditContacts && (
           <ImportContactsCsvModal
             onClose={() => setShowImportCsv(false)}
             onSuccess={async () => {
@@ -497,7 +542,7 @@ export default function ContactsPage() {
           />
         )}
 
-        {scheduleModal.open && scheduleModal.mode === 'create' && (
+        {scheduleModal.open && scheduleModal.mode === 'create' && canEditContacts && (
           <ScheduleDailyCallModal
             mode="create"
             contactId={scheduleModal.contactId}
@@ -509,7 +554,7 @@ export default function ContactsPage() {
           />
         )}
 
-        {scheduleModal.open && scheduleModal.mode === 'edit' && (
+        {scheduleModal.open && scheduleModal.mode === 'edit' && canEditContacts && (
           <ScheduleDailyCallModal
             mode="edit"
             dailyCallId={scheduleModal.dailyCallId}
@@ -522,7 +567,7 @@ export default function ContactsPage() {
           />
         )}
 
-        {callNotesModal.open && (
+        {callNotesModal.open && canEditContacts && (
           <CallNotesModal
             dailyCallId={callNotesModal.dailyCallId}
             onClose={() => setCallNotesModal({ open: false })}
@@ -533,7 +578,7 @@ export default function ContactsPage() {
           />
         )}
 
-        {deleteContact && (
+        {deleteContact && canDeleteContacts && (
           <Modal
             isOpen={true}
             onClose={() => {
@@ -594,7 +639,7 @@ export default function ContactsPage() {
           </Modal>
         )}
 
-        {deleteDailyCall && (
+        {deleteDailyCall && canDeleteContacts && (
           <Modal
             isOpen={true}
             onClose={() => {

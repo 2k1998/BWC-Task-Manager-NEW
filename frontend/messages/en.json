@@ -153,6 +153,32 @@
     "deactivate": "Deactivate",
     "permissions": "Permissions"
   },
+  "AdminPermissions": {
+    "title": "User Permissions",
+    "description": "Control what this user can access",
+    "save": "Save",
+    "cancel": "Cancel",
+    "loading": "Loading permissions…",
+    "loadError": "Failed to load permissions",
+    "saveSuccess": "Permissions saved",
+    "saveError": "Failed to save permissions",
+    "modules": {
+      "tasks": "Tasks",
+      "contacts": "Contacts",
+      "companies": "Companies",
+      "projects": "Projects",
+      "cars": "Cars",
+      "analytics": "Analytics",
+      "payments": "Payments",
+      "documents": "Documents"
+    },
+    "levels": {
+      "none": "No Access",
+      "view": "View Only",
+      "edit": "Edit",
+      "delete": "Edit & Delete"
+    }
+  },
   "Notifications": {
     "markAllRead": "Mark all read",
     "noNotifications": "No notifications",

@@ -16,6 +16,8 @@ interface TaskBoardProps {
   onStatusChange: (taskId: string, newStatus: string) => Promise<void>;
   onTaskRefresh: () => Promise<void>;
   onTaskDeleted: (deletedTaskId: string) => void;
+  canEditTasks: boolean;
+  canDeleteTasks: boolean;
 }
 
 const COLUMNS = [
@@ -27,7 +29,15 @@ const COLUMNS = [
   'Completed',
 ];
 
-export default function TaskBoard({ tasks, currentUser, onStatusChange, onTaskRefresh, onTaskDeleted }: TaskBoardProps) {
+export default function TaskBoard({
+  tasks,
+  currentUser,
+  onStatusChange,
+  onTaskRefresh,
+  onTaskDeleted,
+  canEditTasks,
+  canDeleteTasks,
+}: TaskBoardProps) {
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
 
   const tasksByStatus = COLUMNS.reduce((acc, status) => {
@@ -47,6 +57,7 @@ export default function TaskBoard({ tasks, currentUser, onStatusChange, onTaskRe
 
   const handleDrop = async (e: React.DragEvent, targetStatus: string) => {
     e.preventDefault();
+    if (!canEditTasks) return;
     if (!draggedTaskId) return;
 
     const task = tasks.find((t) => t.id === draggedTaskId);
@@ -102,6 +113,8 @@ export default function TaskBoard({ tasks, currentUser, onStatusChange, onTaskRe
                 onStatusChange={onStatusChange}
                 onTaskRefresh={onTaskRefresh}
                 onTaskDeleted={onTaskDeleted}
+                canEditTasks={canEditTasks}
+                canDeleteTasks={canDeleteTasks}
               />
             ))}
           </div>
@@ -118,6 +131,8 @@ function BoardCard({
   onStatusChange,
   onTaskRefresh,
   onTaskDeleted,
+  canEditTasks,
+  canDeleteTasks,
 }: {
   task: Task;
   currentUser: User | null;
@@ -125,6 +140,8 @@ function BoardCard({
   onStatusChange: (taskId: string, newStatus: string) => Promise<void>;
   onTaskRefresh: () => Promise<void>;
   onTaskDeleted: (deletedTaskId: string) => void;
+  canEditTasks: boolean;
+  canDeleteTasks: boolean;
 }) {
   const [showMenu, setShowMenu] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -194,10 +211,10 @@ function BoardCard({
   }
 
   const canEditOrDelete =
-    !!currentUser && (
-      currentUser.id === (task as any).owner_user_id ||
-      currentUser.user_type === 'Admin'
-    );
+    !!currentUser &&
+    (currentUser.id === (task as any).owner_user_id || currentUser.user_type === 'Admin');
+  const showEditInMenu = canEditOrDelete && canEditTasks;
+  const showDeleteInMenu = canEditOrDelete && canDeleteTasks;
 
   const handleDeleteTask = async () => {
     try {
@@ -217,9 +234,11 @@ function BoardCard({
   return (
     <>
       <div
-        draggable
-        onDragStart={onDragStart}
-        className={`relative group cursor-grab active:cursor-grabbing transition-all duration-200 ${visualEmphasis}`}
+        draggable={canEditTasks}
+        onDragStart={canEditTasks ? onDragStart : undefined}
+        className={`relative group transition-all duration-200 ${visualEmphasis} ${
+          canEditTasks ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'
+        }`}
       >
         <Link href={`/tasks/${task.id}`} className="block">
           <Card
@@ -254,7 +273,7 @@ function BoardCard({
              <div className="flex items-center gap-2">
                {badge}
 
-              {canEditOrDelete && (
+              {(showEditInMenu || showDeleteInMenu) && (
                 <div ref={menuRef} onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
                     <button
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowMenu(!showMenu); }}
@@ -268,6 +287,7 @@ function BoardCard({
 
                     {showMenu && (
                       <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1">
+                        {showEditInMenu && (
                         <button
                           onClick={(e) => {
                             e.preventDefault();
@@ -279,6 +299,8 @@ function BoardCard({
                         >
                           Edit
                         </button>
+                        )}
+                        {showDeleteInMenu && (
                         <button
                           onClick={(e) => {
                             e.preventDefault();
@@ -290,6 +312,7 @@ function BoardCard({
                         >
                           Delete
                         </button>
+                        )}
                       </div>
                     )}
                   </div>

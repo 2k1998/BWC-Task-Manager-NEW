@@ -25,6 +25,7 @@ class User(BaseModel):
     # Relationships
     manager = relationship("User", remote_side=[id], backref="subordinates")
     page_permissions = relationship("UserPagePermission", back_populates="user", cascade="all, delete-orphan")
+    module_permissions = relationship("UserPermission", back_populates="user", cascade="all, delete-orphan")
     refresh_tokens = relationship("AuthRefreshToken", back_populates="user", cascade="all, delete-orphan")
     audit_logs_as_admin = relationship("UserAuditLog", foreign_keys="UserAuditLog.admin_user_id", back_populates="admin_user")
     audit_logs_as_target = relationship("UserAuditLog", foreign_keys="UserAuditLog.target_user_id", back_populates="target_user")

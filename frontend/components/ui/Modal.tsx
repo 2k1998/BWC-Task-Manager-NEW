@@ -8,9 +8,11 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  /** Optional classes for the white panel (e.g. max width, shadow). */
+  panelClassName?: string;
 }
 
-export default function Modal({ isOpen, onClose, title, children }: ModalProps) {
+export default function Modal({ isOpen, onClose, title, children, panelClassName }: ModalProps) {
   const titleId = useId();
   const t = useTranslations('Common');
 
@@ -46,7 +48,9 @@ export default function Modal({ isOpen, onClose, title, children }: ModalProps) 
       aria-modal="true"
       aria-labelledby={titleId}
     >
-      <div className="bg-white shadow-2xl w-full max-w-lg mx-auto rounded-xl flex flex-col max-h-[90vh] overflow-y-auto animate-fadeIn scale-100 opacity-100">
+      <div
+        className={`bg-white w-full mx-auto rounded-xl flex flex-col max-h-[90vh] overflow-y-auto animate-fadeIn scale-100 opacity-100 ${panelClassName || 'shadow-2xl max-w-lg'}`}
+      >
         
         {/* Header */}
         <div className="p-4 sm:p-5 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white rounded-t-xl z-10">

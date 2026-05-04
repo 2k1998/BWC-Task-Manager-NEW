@@ -2,6 +2,9 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { usePermissions } from '@/context/PermissionsContext';
+import { useHasPermission } from '@/hooks/useHasPermission';
+import { useRequireModuleView } from '@/hooks/useRequireModuleView';
 import apiClient from '@/lib/apiClient';
 import { getErrorMessage } from '@/lib/errorHandler';
 import {
@@ -19,7 +22,12 @@ import { useRouter } from 'next/navigation';
 import ProtectedLayout from '@/components/ProtectedLayout';
 
 export default function CompaniesPage() {
-  const { user } = useAuth();
+  const { isLoading: authLoading } = useAuth();
+  const { isLoading: permLoading } = usePermissions();
+  useRequireModuleView('companies');
+  const canViewCompanies = useHasPermission('companies', 'view');
+  const canEditCompanies = useHasPermission('companies', 'edit');
+  const canDeleteCompanies = useHasPermission('companies', 'delete');
   const router = useRouter();
   
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -28,8 +36,6 @@ export default function CompaniesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const companiesPermission = useMemo(() => resolveCompaniesPermission(user), [user]);
-  const canCreate = companiesPermission === 'full';
 
   const fetchCompanies = useCallback(async () => {
     try {
@@ -52,6 +58,18 @@ export default function CompaniesPage() {
     if (!q) return companies;
     return companies.filter((c) => (c.name || '').toLowerCase().includes(q));
   }, [companies, searchQuery]);
+
+  if (authLoading || permLoading) {
+    return (
+      <ProtectedLayout>
+        <LoadingSkeleton variant="table" count={6} />
+      </ProtectedLayout>
+    );
+  }
+
+  if (!canViewCompanies) {
+    return null;
+  }
 
   if (loading && companies.length === 0) {
     return (
@@ -77,7 +95,7 @@ export default function CompaniesPage() {
             <h1 className="text-2xl font-bold text-gray-900">Companies</h1>
           </div>
 
-          {canCreate && (
+          {canEditCompanies && (
             <Button
               onClick={() => setShowCreateModal(true)}
               variant="primary"
@@ -105,7 +123,7 @@ export default function CompaniesPage() {
           <EmptyState
             title="No companies yet. Create the first one."
             action={
-              canCreate ? (
+              canEditCompanies ? (
                 <Button onClick={() => setShowCreateModal(true)} variant="primary">
                   New Company
                 </Button>
@@ -153,6 +171,7 @@ export default function CompaniesPage() {
                     </div>
                   </div>
                   <div className="mt-4 flex gap-2">
+                    {canEditCompanies && (
                     <Button
                       variant="secondary"
                       size="sm"
@@ -161,6 +180,8 @@ export default function CompaniesPage() {
                     >
                       Edit
                     </Button>
+                    )}
+                    {canDeleteCompanies && (
                     <Button
                       variant="destructive"
                       size="sm"
@@ -169,6 +190,7 @@ export default function CompaniesPage() {
                     >
                       Delete
                     </Button>
+                    )}
                   </div>
                 </div>
               )})}
@@ -232,7 +254,7 @@ export default function CompaniesPage() {
           </Card>
         )}
 
-        {showCreateModal && (
+        {showCreateModal && canEditCompanies && (
           <CreateCompanyModal
             onClose={() => setShowCreateModal(false)}
             onSuccess={() => {
@@ -244,23 +266,4 @@ export default function CompaniesPage() {
       </div>
     </ProtectedLayout>
   );
-}
-
-function resolveCompaniesPermission(user: any): 'none' | 'read' | 'full' {
-  if (!user) return 'none';
-  if (user.user_type === 'Admin') return 'full'; // PRD #0 admin override
-
-  const perms = user.permissions ?? user.pages_permissions ?? user.page_permissions;
-  if (!perms) return 'none';
-
-  const candidate =
-    perms.companies ??
-    perms.companies_page ??
-    perms.pages?.Companies ??
-    perms.pages?.companies ??
-    perms.Companies ??
-    perms.Company;
-
-  if (candidate === 'full' || candidate === 'read' || candidate === 'none') return candidate;
-  return 'none';
 }

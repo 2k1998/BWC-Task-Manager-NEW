@@ -22,3 +22,19 @@ class UserPagePermission(BaseModel):
     # Relationships
     user = relationship("User", back_populates="page_permissions")
     page = relationship("Page")
+
+
+class UserPermission(BaseModel):
+    """User module permission model."""
+    __tablename__ = "user_permissions"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
+    module = Column(String, nullable=False)
+    access_level = Column(String, nullable=False)  # none, view, edit, delete
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "module", name="uq_user_permissions_user_module"),
+    )
+
+    user = relationship("User", back_populates="module_permissions")

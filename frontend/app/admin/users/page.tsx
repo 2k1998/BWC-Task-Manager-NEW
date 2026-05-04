@@ -2,17 +2,22 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import ProtectedLayout from '@/components/ProtectedLayout';
 import AdminRoute from '@/components/AdminRoute';
+import PermissionsModal from '@/components/PermissionsModal';
 import { Card, Badge, Button, Input, Modal } from '@/components/ui';
 import apiClient from '@/lib/apiClient';
 import { User } from '@/lib/types';
+import { useAuth } from '@/context/AuthContext';
 
 type AdminTab = 'users' | 'departments';
 type Department = { id: string; name: string; created_at?: string };
 
 export default function AdminUsersPage() {
+  const tAdmin = useTranslations('Admin');
+  const { user: currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState<AdminTab>('users');
   const [users, setUsers] = useState<User[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -38,6 +43,22 @@ export default function AdminUsersPage() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [generatedPassword, setGeneratedPassword] = useState('');
   const [newDepartmentName, setNewDepartmentName] = useState('');
+
+  const [permissionsModalOpen, setPermissionsModalOpen] = useState(false);
+  const [permissionsTarget, setPermissionsTarget] = useState<{ id: string; name: string } | null>(null);
+
+  const openPermissionsModal = (user: User) => {
+    const name = `${user.first_name} ${user.last_name}`.trim() || user.username;
+    setPermissionsTarget({ id: user.id, name });
+    setPermissionsModalOpen(true);
+  };
+
+  const closePermissionsModal = () => {
+    setPermissionsModalOpen(false);
+    setPermissionsTarget(null);
+  };
+
+  const showPermissionsButton = currentUser?.user_type === 'Admin';
 
   useEffect(() => {
     fetchUsers();
@@ -239,6 +260,15 @@ export default function AdminUsersPage() {
                       <span className="font-medium">{user.is_active ? 'Active' : 'Inactive'}</span>
                     </div>
                     <div className="mt-4 flex flex-wrap gap-2">
+                      {showPermissionsButton && (
+                        <Button
+                          variant="secondary"
+                          className="w-full border-[#D1AE62]/40 text-gray-800"
+                          onClick={() => openPermissionsModal(user)}
+                        >
+                          {tAdmin('permissions')}
+                        </Button>
+                      )}
                       <Button variant="secondary" className="w-full" onClick={() => { setSelectedUser(user); setIsResetOpen(true); }}>
                         Reset Password
                       </Button>
@@ -307,7 +337,16 @@ export default function AdminUsersPage() {
                           {new Date(user.created_at).toLocaleDateString()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <div className="flex items-center justify-end gap-2">
+                          <div className="flex items-center justify-end gap-2 flex-wrap">
+                            {showPermissionsButton && (
+                              <button
+                                type="button"
+                                onClick={() => openPermissionsModal(user)}
+                                className="text-gray-900 hover:text-gray-950 bg-[#D1AE62]/15 border border-[#D1AE62]/50 px-3 py-1 rounded hover:bg-[#D1AE62]/25 transition-colors"
+                              >
+                                {tAdmin('permissions')}
+                              </button>
+                            )}
                             <button
                               onClick={() => { setSelectedUser(user); setIsResetOpen(true); }}
                               className="text-indigo-600 hover:text-indigo-900 bg-indigo-50 px-3 py-1 rounded hover:bg-indigo-100 transition-colors"
@@ -486,6 +525,15 @@ export default function AdminUsersPage() {
             </div>
           </form>
         </Modal>
+
+        {permissionsTarget && (
+          <PermissionsModal
+            userId={permissionsTarget.id}
+            userName={permissionsTarget.name}
+            isOpen={permissionsModalOpen}
+            onClose={closePermissionsModal}
+          />
+        )}
 
         <Modal
           isOpen={isPasswordDisplayOpen}

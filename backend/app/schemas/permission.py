@@ -5,6 +5,8 @@ from uuid import UUID
 
 # Allowed access levels (application-level validation)
 ALLOWED_ACCESS_LEVELS = ["none", "read", "full"]
+ALLOWED_MODULES = ["tasks", "contacts", "companies", "projects", "cars", "analytics", "payments", "documents"]
+ALLOWED_MODULE_ACCESS_LEVELS = ["none", "view", "edit", "delete"]
 
 
 class PagePermissionItem(BaseModel):
@@ -37,3 +39,27 @@ class PagePermissionResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+
+class ModulePermissionItem(BaseModel):
+    module: str = Field(..., description="Module key")
+    access_level: str = Field(..., description="Must be one of: none, view, edit, delete")
+
+
+class SetModulePermissionsRequest(BaseModel):
+    permissions: List[ModulePermissionItem]
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "permissions": [
+                    {"module": "tasks", "access_level": "delete"},
+                    {"module": "analytics", "access_level": "view"},
+                ]
+            }
+        }
+
+
+class ModulePermissionResponse(BaseModel):
+    module: str
+    access_level: str

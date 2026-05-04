@@ -20,6 +20,9 @@ import {
 
 import ProtectedLayout from '@/components/ProtectedLayout';
 import { useAuth } from '@/context/AuthContext';
+import { usePermissions } from '@/context/PermissionsContext';
+import { useHasPermission } from '@/hooks/useHasPermission';
+import { useRequireModuleView } from '@/hooks/useRequireModuleView';
 import apiClient from '@/lib/apiClient';
 import { getErrorMessage } from '@/lib/errorHandler';
 import { Badge, Button, EmptyState, ErrorState, LoadingSkeleton, Select, Table } from '@/components/ui';
@@ -110,7 +113,10 @@ function formatUserLabel(user: UserOption): string {
 }
 
 export default function AnalyticsPage() {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
+  const { isLoading: permLoading } = usePermissions();
+  useRequireModuleView('analytics');
+  const canViewAnalytics = useHasPermission('analytics', 'view');
 
   const role = user?.user_type ?? '';
   const canSelectUser = role === 'Admin' || role === 'Pillar' || role === 'Manager';
@@ -282,6 +288,20 @@ export default function AnalyticsPage() {
       trend: null,
     },
   ];
+
+  if (authLoading || permLoading) {
+    return (
+      <ProtectedLayout>
+        <div className="p-6">
+          <LoadingSkeleton variant="list" count={8} />
+        </div>
+      </ProtectedLayout>
+    );
+  }
+
+  if (!canViewAnalytics) {
+    return null;
+  }
 
   return (
     <ProtectedLayout>

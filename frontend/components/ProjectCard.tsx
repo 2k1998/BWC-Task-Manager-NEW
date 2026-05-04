@@ -5,6 +5,8 @@ import { useState, useRef, useEffect } from 'react';
 interface ProjectCardProps {
   project: Project;
   onStatusChange?: (projectId: string, newStatus: string) => Promise<void>;
+  /** When false, hides status actions menu (edit-level UI). */
+  showStatusMenu?: boolean;
 }
 
 const statusColors = {
@@ -15,7 +17,7 @@ const statusColors = {
   Cancelled: 'bg-red-100 text-red-800',
 };
 
-export default function ProjectCard({ project, onStatusChange }: ProjectCardProps) {
+export default function ProjectCard({ project, onStatusChange, showStatusMenu = true }: ProjectCardProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -61,6 +63,7 @@ export default function ProjectCard({ project, onStatusChange }: ProjectCardProp
               {project.status}
             </span>
             
+            {showStatusMenu && (
             <div ref={menuRef} onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
               <button 
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowMenu(!showMenu); }}
@@ -89,6 +92,7 @@ export default function ProjectCard({ project, onStatusChange }: ProjectCardProp
                 </div>
               )}
             </div>
+            )}
           </div>
         </div>
 

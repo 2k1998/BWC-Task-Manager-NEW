@@ -1,9 +1,12 @@
 from sqlalchemy.orm import Session
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 from uuid import UUID
 
 from app.models.user import User
-from app.models.permission import UserPagePermission
+from app.models.permission import UserPagePermission, UserPermission
+
+if TYPE_CHECKING:
+    from app.schemas.permission import ModulePermissionResponse
 
 
 def check_user_permission(db: Session, user: User, page_key: str) -> str:
@@ -68,3 +71,52 @@ def get_user_hierarchy(db: Session, user_id: UUID) -> List[User]:
         subordinates.extend(get_user_hierarchy(db, subordinate.id))
     
     return subordinates
+
+
+MODULE_PERMISSION_LEVELS = {
+    "none": 0,
+    "view": 1,
+    "edit": 2,
+    "delete": 3,
+}
+
+
+def user_has_permission(user_id: UUID, module: str, required_level: str, db: Session) -> bool:
+    """
+    Check whether a user has at least the required module access level.
+
+    Hierarchy: delete > edit > view > none
+    Admin users always return True.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return False
+
+    if user.user_type == "Admin":
+        return True
+
+    required_rank = MODULE_PERMISSION_LEVELS.get(required_level)
+    if required_rank is None:
+        return False
+
+    permission = db.query(UserPermission).filter(
+        UserPermission.user_id == user_id,
+        UserPermission.module == module,
+    ).first()
+
+    # Default full access for existing users with no explicit module row.
+    effective_level = permission.access_level if permission else "edit"
+    effective_rank = MODULE_PERMISSION_LEVELS.get(effective_level, 0)
+    return effective_rank >= required_rank
+
+
+def get_user_module_permissions_rows(db: Session, user_id: UUID) -> List["ModulePermissionResponse"]:
+    """Full module permission list for a user (defaults missing modules to edit)."""
+    from app.schemas.permission import ModulePermissionResponse, ALLOWED_MODULES
+
+    existing = db.query(UserPermission).filter(UserPermission.user_id == user_id).all()
+    by_module = {row.module: row.access_level for row in existing}
+    return [
+        ModulePermissionResponse(module=module, access_level=by_module.get(module, "edit"))
+        for module in ALLOWED_MODULES
+    ]

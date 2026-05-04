@@ -9,6 +9,9 @@ import apiClient from '@/lib/apiClient';
 import { getErrorMessage } from '@/lib/errorHandler';
 import type { Company, Payment, PaymentListResponse, User } from '@/lib/types';
 import { useAuth } from '@/context/AuthContext';
+import { usePermissions } from '@/context/PermissionsContext';
+import { useHasPermission } from '@/hooks/useHasPermission';
+import { useRequireModuleView } from '@/hooks/useRequireModuleView';
 
 import {
   Badge,
@@ -59,10 +62,14 @@ export default function PaymentsPage() {
   const [deleting, setDeleting] = useState(false);
 
   // Auth
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
+  const { isLoading: permLoading } = usePermissions();
+  useRequireModuleView('payments');
+  const canViewPayments = useHasPermission('payments', 'view');
+  const canEditPayments = useHasPermission('payments', 'edit');
+  const canDeletePayments = useHasPermission('payments', 'delete');
   const currentUserId = user?.id ?? null;
   const isAdmin = user?.user_type === 'Admin';
-  const canCreate = useMemo(() => resolvePaymentsPermission(user) === 'full', [user]);
 
   const fetchCompanies = useCallback(async () => {
     try {
@@ -173,10 +180,18 @@ export default function PaymentsPage() {
   const canEditRow = useCallback(
     (payment: Payment) => {
       if (!currentUserId) return false;
-      if (!canCreate && !isAdmin) return false;
+      if (!canEditPayments) return false;
       return isAdmin || payment.created_by_user_id === currentUserId;
     },
-    [canCreate, currentUserId, isAdmin],
+    [canEditPayments, currentUserId, isAdmin],
+  );
+
+  const canDeleteRow = useCallback(
+    (payment: Payment) => {
+      if (!canDeletePayments) return false;
+      return canEditRow(payment);
+    },
+    [canDeletePayments, canEditRow],
   );
 
   const handleDeleteConfirm = useCallback(async () => {
@@ -208,6 +223,20 @@ export default function PaymentsPage() {
     [],
   );
 
+  if (authLoading || permLoading) {
+    return (
+      <ProtectedLayout>
+        <div className="p-6">
+          <LoadingSkeleton variant="table" count={6} />
+        </div>
+      </ProtectedLayout>
+    );
+  }
+
+  if (!canViewPayments) {
+    return null;
+  }
+
   return (
     <ProtectedLayout>
       <div className="space-y-6">
@@ -216,7 +245,7 @@ export default function PaymentsPage() {
             <h1 className="text-2xl font-bold text-gray-900">Payments</h1>
           </div>
 
-          {canCreate && (
+          {canEditPayments && (
             <Button
               onClick={() => setPaymentModal({ open: true, mode: 'create' })}
               variant="primary"
@@ -395,7 +424,7 @@ export default function PaymentsPage() {
                           Edit
                         </Button>
                       )}
-                      {isAdmin && (
+                      {canDeleteRow(p) && (
                         <Button
                           variant="destructive"
                           size="sm"
@@ -480,7 +509,7 @@ export default function PaymentsPage() {
                               </Button>
                             )}
 
-                            {isAdmin && (
+                            {canDeleteRow(p) && (
                               <Button
                                 variant="destructive"
                                 size="sm"
@@ -502,7 +531,7 @@ export default function PaymentsPage() {
         )}
 
         {/* Create/Edit Payment Modal */}
-        {paymentModal.open && paymentModal.mode === 'create' && (
+        {paymentModal.open && paymentModal.mode === 'create' && canEditPayments && (
           <PaymentModal
             mode="create"
             onClose={() => setPaymentModal({ open: false })}
@@ -510,7 +539,7 @@ export default function PaymentsPage() {
           />
         )}
 
-        {paymentModal.open && paymentModal.mode === 'edit' && (
+        {paymentModal.open && paymentModal.mode === 'edit' && canEditPayments && (
           <PaymentModal
             mode="edit"
             payment={paymentModal.payment}
@@ -520,7 +549,7 @@ export default function PaymentsPage() {
         )}
 
         {/* Delete Confirmation */}
-        {deletePayment && (
+        {deletePayment && canDeleteRow(deletePayment) && (
           <Modal
             isOpen={true}
             onClose={() => {
@@ -550,23 +579,3 @@ export default function PaymentsPage() {
     </ProtectedLayout>
   );
 }
-
-function resolvePaymentsPermission(user: any): 'none' | 'read' | 'full' {
-  if (!user) return 'none';
-  if (user.user_type === 'Admin') return 'full'; // Admin override
-
-  const perms = user.permissions ?? user.pages_permissions ?? user.page_permissions;
-  if (!perms) return 'none';
-
-  const candidate =
-    perms.payments ??
-    perms.payments_page ??
-    perms.pages?.Payments ??
-    perms.pages?.payments ??
-    perms.Payments ??
-    perms.Payment;
-
-  if (candidate === 'full' || candidate === 'read' || candidate === 'none') return candidate;
-  return 'none';
-}
-

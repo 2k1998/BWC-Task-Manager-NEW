@@ -9,11 +9,20 @@ from app.core.database import get_db
 from app.core.deps import require_admin
 from app.core.security import hash_password
 from app.models.user import User
-from app.models.permission import UserPagePermission
+from app.models.permission import UserPagePermission, UserPermission
 from app.models.page import Page
 from app.schemas.user import UserCreate, UserUpdate, UserResponse, UserListResponse, ALLOWED_USER_TYPES
-from app.schemas.permission import SetPermissionsRequest, PagePermissionResponse, ALLOWED_ACCESS_LEVELS
+from app.schemas.permission import (
+    SetPermissionsRequest,
+    PagePermissionResponse,
+    ALLOWED_ACCESS_LEVELS,
+    SetModulePermissionsRequest,
+    ModulePermissionResponse,
+    ALLOWED_MODULES,
+    ALLOWED_MODULE_ACCESS_LEVELS,
+)
 from app.utils.audit import create_audit_log
+from app.utils.permissions import get_user_module_permissions_rows
 
 router = APIRouter(prefix="/admin/users", tags=["Admin - User Management"])
 
@@ -22,6 +31,10 @@ def generate_temporary_password(length: int = 12) -> str:
     """Generate a random temporary password."""
     alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
     return ''.join(secrets.choice(alphabet) for _ in range(length))
+
+
+def _build_user_module_permissions_response(user_id: UUID, db: Session) -> List[ModulePermissionResponse]:
+    return get_user_module_permissions_rows(db, user_id)
 
 
 @router.get("/me", response_model=UserResponse)
@@ -182,6 +195,67 @@ def get_user(
         )
     
     return user
+
+
+@router.get("/{user_id}/permissions", response_model=List[ModulePermissionResponse])
+def get_user_module_permissions(
+    user_id: UUID,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    return _build_user_module_permissions_response(user_id=user_id, db=db)
+
+
+@router.patch("/{user_id}/permissions", response_model=List[ModulePermissionResponse])
+def patch_user_module_permissions(
+    user_id: UUID,
+    permissions_data: SetModulePermissionsRequest,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    for perm in permissions_data.permissions:
+        if perm.module not in ALLOWED_MODULES:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid module '{perm.module}'. Must be one of: {', '.join(ALLOWED_MODULES)}"
+            )
+        if perm.access_level not in ALLOWED_MODULE_ACCESS_LEVELS:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid access_level '{perm.access_level}'. Must be one of: {', '.join(ALLOWED_MODULE_ACCESS_LEVELS)}"
+            )
+
+    existing = db.query(UserPermission).filter(UserPermission.user_id == user_id).all()
+    existing_by_module = {perm.module: perm for perm in existing}
+
+    for perm_data in permissions_data.permissions:
+        existing_perm = existing_by_module.get(perm_data.module)
+        if existing_perm:
+            existing_perm.access_level = perm_data.access_level
+        else:
+            db.add(
+                UserPermission(
+                    user_id=user_id,
+                    module=perm_data.module,
+                    access_level=perm_data.access_level,
+                )
+            )
+
+    db.commit()
+    return _build_user_module_permissions_response(user_id=user_id, db=db)
 
 
 @router.put("/{user_id}", response_model=UserResponse)

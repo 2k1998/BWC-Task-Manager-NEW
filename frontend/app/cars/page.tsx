@@ -1,18 +1,26 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import ProtectedLayout from '@/components/ProtectedLayout';
 import RegisterCarModal from '@/components/modals/RegisterCarModal';
 import { useAuth } from '@/context/AuthContext';
+import { usePermissions } from '@/context/PermissionsContext';
+import { useHasPermission } from '@/hooks/useHasPermission';
+import { useRequireModuleView } from '@/hooks/useRequireModuleView';
 import apiClient from '@/lib/apiClient';
 import { getErrorMessage } from '@/lib/errorHandler';
 import type { Car, CarListResponse } from '@/lib/types';
 import { Badge, Button, Card, EmptyState, ErrorState, Input, LoadingSkeleton, Select, Table } from '@/components/ui';
 
 export default function CarsPage() {
-  const { user } = useAuth();
+  const { isLoading: authLoading } = useAuth();
+  const { isLoading: permLoading } = usePermissions();
+  useRequireModuleView('cars');
+  const canViewCars = useHasPermission('cars', 'view');
+  const canEditCars = useHasPermission('cars', 'edit');
+  const canDeleteCars = useHasPermission('cars', 'delete');
   const router = useRouter();
 
   const [cars, setCars] = useState<Car[]>([]);
@@ -21,9 +29,6 @@ export default function CarsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [showRegisterModal, setShowRegisterModal] = useState(false);
-
-  const carsPermission = useMemo(() => resolveCarsPermission(user), [user]);
-  const canManage = carsPermission === 'full';
 
   const fetchCars = useCallback(async () => {
     try {
@@ -53,6 +58,18 @@ export default function CarsPage() {
     return 'gray';
   };
 
+  if (authLoading || permLoading) {
+    return (
+      <ProtectedLayout>
+        <LoadingSkeleton variant="table" count={6} />
+      </ProtectedLayout>
+    );
+  }
+
+  if (!canViewCars) {
+    return null;
+  }
+
   if (loading && cars.length === 0) {
     return (
       <ProtectedLayout>
@@ -69,20 +86,12 @@ export default function CarsPage() {
     );
   }
 
-  if (carsPermission === 'none') {
-    return (
-      <ProtectedLayout>
-        <EmptyState title="You do not have access to Cars." />
-      </ProtectedLayout>
-    );
-  }
-
   return (
     <ProtectedLayout>
       <div className="space-y-6">
           <div className="flex flex-wrap flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <h1 className="text-2xl font-bold text-gray-900">Cars</h1>
-          {canManage && (
+          {canEditCars && (
             <Button onClick={() => setShowRegisterModal(true)} variant="primary" aria-label="Register Car" className="w-full sm:w-auto">
               Register Car
             </Button>
@@ -145,12 +154,16 @@ export default function CarsPage() {
                     </div>
                   </div>
                   <div className="mt-4 flex gap-2">
+                    {canEditCars && (
                     <Button variant="secondary" size="sm" className="bg-white w-full" onClick={() => router.push(`/cars/${car.id}`)}>
                       Edit
                     </Button>
+                    )}
+                    {canDeleteCars && (
                     <Button variant="destructive" size="sm" className="w-full" onClick={() => router.push(`/cars/${car.id}`)}>
                       Delete
                     </Button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -198,7 +211,7 @@ export default function CarsPage() {
           </Card>
         )}
 
-        {showRegisterModal && canManage && (
+        {showRegisterModal && canEditCars && (
           <RegisterCarModal
             onClose={() => setShowRegisterModal(false)}
             onSuccess={() => {
@@ -210,23 +223,4 @@ export default function CarsPage() {
       </div>
     </ProtectedLayout>
   );
-}
-
-function resolveCarsPermission(user: any): 'none' | 'read' | 'full' {
-  if (!user) return 'none';
-  if (user.user_type === 'Admin') return 'full';
-
-  const perms = user.permissions ?? user.pages_permissions ?? user.page_permissions;
-  if (!perms) return 'none';
-
-  const candidate =
-    perms.cars ??
-    perms.cars_page ??
-    perms.pages?.Cars ??
-    perms.pages?.cars ??
-    perms.Cars ??
-    perms.Car;
-
-  if (candidate === 'full' || candidate === 'read' || candidate === 'none') return candidate;
-  return 'none';
 }

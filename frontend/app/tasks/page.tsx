@@ -12,6 +12,9 @@ import type { Task } from '@/lib/types';
 import apiClient from '@/lib/apiClient';
 import { getErrorMessage } from '@/lib/errorHandler';
 import { useAuth } from '@/context/AuthContext';
+import { usePermissions } from '@/context/PermissionsContext';
+import { useHasPermission } from '@/hooks/useHasPermission';
+import { useRequireModuleView } from '@/hooks/useRequireModuleView';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { getUrgencyDotColor } from '@/lib/urgencyFilter';
@@ -56,7 +59,12 @@ function TasksPageContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, isLoading: authLoading } = useAuth();
+  const { isLoading: permLoading } = usePermissions();
+  useRequireModuleView('tasks');
+  const canViewTasks = useHasPermission('tasks', 'view');
+  const canEditTasks = useHasPermission('tasks', 'edit');
+  const canDeleteTasks = useHasPermission('tasks', 'delete');
   const searchParams = useSearchParams();
   const router = useRouter();
   const [page, setPage] = useState(1);
@@ -78,14 +86,14 @@ function TasksPageContent() {
   const [lookupsLoading, setLookupsLoading] = useState(false);
 
   useEffect(() => {
-    if (searchParams.get('action') === 'new') {
+    if (searchParams.get('action') === 'new' && canEditTasks) {
       setShowCreateModal(true);
       // Remove the query param so refreshing doesn't reopen it
       const newUrl = new URL(window.location.href);
       newUrl.searchParams.delete('action');
       router.replace(newUrl.pathname + newUrl.search, { scroll: false });
     }
-  }, [searchParams, router]);
+  }, [searchParams, router, canEditTasks]);
 
   useEffect(() => {
     fetchTasks();
@@ -232,6 +240,20 @@ function TasksPageContent() {
     }
   };
 
+  if (authLoading || permLoading) {
+    return (
+      <ProtectedLayout>
+        <div className="p-4">
+          <LoadingSkeleton variant="list" count={8} />
+        </div>
+      </ProtectedLayout>
+    );
+  }
+
+  if (!canViewTasks) {
+    return null;
+  }
+
   if (loading && !tasks.length) { 
     return (
       <ProtectedLayout>
@@ -282,6 +304,7 @@ function TasksPageContent() {
                 <SlidersHorizontal className="w-4 h-4" />
                 {activeFilterCount > 0 ? `${tTasks('filters')} · ${activeFilterCount}` : tTasks('filters')}
               </Button>
+              {canEditTasks && (
               <Button
                 variant="primary"
                 onClick={() => setShowCreateModal(true)}
@@ -292,6 +315,7 @@ function TasksPageContent() {
                 </svg>
                 {tTasks('newTask')}
               </Button>
+              )}
             </div>
           </div>
           <input
@@ -509,11 +533,13 @@ function TasksPageContent() {
             onTaskDeleted={(deletedTaskId) =>
               setTasks((prev) => prev.filter((task) => task.id !== deletedTaskId))
             }
+            canEditTasks={canEditTasks}
+            canDeleteTasks={canDeleteTasks}
           />
         </div>
       </div>
 
-      {showCreateModal && (
+      {showCreateModal && canEditTasks && (
         <CreateTaskModal 
             onClose={() => setShowCreateModal(false)}
             onSuccess={() => {

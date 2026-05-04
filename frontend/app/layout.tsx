@@ -3,6 +3,7 @@ import { Toaster } from "sonner";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import IntlProvider from "@/components/IntlProvider";
 import { AuthProvider } from "@/context/AuthContext";
+import { PermissionsProvider } from "@/context/PermissionsContext";
 import { LanguageProvider } from "@/context/LanguageContext";
 import { NotificationProvider } from "@/context/NotificationContext";
 import { PresenceProvider } from "@/context/PresenceContext";
@@ -24,13 +25,15 @@ export default function RootLayout({
         <IntlProvider>
           <ErrorBoundary>
             <AuthProvider>
-              <LanguageProvider>
-                <PresenceProvider>
-                  <NotificationProvider>
-                    {children}
-                  </NotificationProvider>
-                </PresenceProvider>
-              </LanguageProvider>
+              <PermissionsProvider>
+                <LanguageProvider>
+                  <PresenceProvider>
+                    <NotificationProvider>
+                      {children}
+                    </NotificationProvider>
+                  </PresenceProvider>
+                </LanguageProvider>
+              </PermissionsProvider>
             </AuthProvider>
           </ErrorBoundary>
         </IntlProvider>
