@@ -21,7 +21,7 @@ export function useHasPermission(module: ModuleKey, requiredLevel: AccessLevel):
     return true;
   }
 
-  const effective = (permissions[module] ?? 'edit') as AccessLevel;
+  const effective = (permissions[module] ?? 'none') as AccessLevel;
   const userRank = RANK[effective] ?? 0;
   const requiredRank = RANK[requiredLevel] ?? 0;
   return userRank >= requiredRank;

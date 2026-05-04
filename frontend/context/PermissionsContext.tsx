@@ -15,14 +15,12 @@ interface PermissionsContextValue {
 
 const PermissionsContext = createContext<PermissionsContextValue | undefined>(undefined);
 
-type ApiPermissionRow = { module: string; access_level: string };
-
-function rowsToMap(rows: ApiPermissionRow[]): PermissionsMap {
+function permissionsObjectToMap(permissions: Record<string, string>): PermissionsMap {
   const base = defaultPermissionsMap();
-  for (const row of rows) {
-    const mod = row.module as ModuleKey;
-    if (MODULE_KEYS.includes(mod) && isAccessLevel(row.access_level)) {
-      base[mod] = row.access_level;
+  for (const key of MODULE_KEYS) {
+    const v = permissions[key];
+    if (v && isAccessLevel(v)) {
+      base[key] = v;
     }
   }
   return base;
@@ -48,8 +46,11 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
 
     try {
       setIsLoading(true);
-      const { data } = await apiClient.get<ApiPermissionRow[]>(`/auth/me/module-permissions`);
-      setPermissions(rowsToMap(Array.isArray(data) ? data : []));
+      const { data } = await apiClient.get<{ permissions: Record<string, string> }>(
+        `/auth/me/module-permissions`,
+      );
+      const perms = data?.permissions && typeof data.permissions === 'object' ? data.permissions : {};
+      setPermissions(permissionsObjectToMap(perms));
     } catch {
       setPermissions(defaultPermissionsMap());
     } finally {

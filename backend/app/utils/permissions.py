@@ -104,19 +104,35 @@ def user_has_permission(user_id: UUID, module: str, required_level: str, db: Ses
         UserPermission.module == module,
     ).first()
 
-    # Default full access for existing users with no explicit module row.
-    effective_level = permission.access_level if permission else "edit"
+    effective_level = permission.access_level if permission else "none"
     effective_rank = MODULE_PERMISSION_LEVELS.get(effective_level, 0)
     return effective_rank >= required_rank
 
 
-def get_user_module_permissions_rows(db: Session, user_id: UUID) -> List["ModulePermissionResponse"]:
-    """Full module permission list for a user (defaults missing modules to edit)."""
-    from app.schemas.permission import ModulePermissionResponse, ALLOWED_MODULES
+def get_user_module_permissions_map(db: Session, user_id: UUID) -> dict[str, str]:
+    """
+    Map module -> access_level for all ALLOWED_MODULES.
+    Admins: every module is 'delete'. Non-admins: DB row or 'none' for missing modules.
+    """
+    from app.schemas.permission import ALLOWED_MODULES
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return {m: "none" for m in ALLOWED_MODULES}
+    if user.user_type == "Admin":
+        return {m: "delete" for m in ALLOWED_MODULES}
 
     existing = db.query(UserPermission).filter(UserPermission.user_id == user_id).all()
     by_module = {row.module: row.access_level for row in existing}
+    return {m: by_module.get(m, "none") for m in ALLOWED_MODULES}
+
+
+def get_user_module_permissions_rows(db: Session, user_id: UUID) -> List["ModulePermissionResponse"]:
+    """Full module permission list (same rules as get_user_module_permissions_map)."""
+    from app.schemas.permission import ModulePermissionResponse, ALLOWED_MODULES
+
+    perms = get_user_module_permissions_map(db, user_id)
     return [
-        ModulePermissionResponse(module=module, access_level=by_module.get(module, "edit"))
-        for module in ALLOWED_MODULES
+        ModulePermissionResponse(module=m, access_level=perms[m])
+        for m in ALLOWED_MODULES
     ]

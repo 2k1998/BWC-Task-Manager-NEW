@@ -19,7 +19,7 @@ export type AccessLevel = (typeof ACCESS_LEVELS)[number];
 export function defaultPermissionsMap(): Record<ModuleKey, AccessLevel> {
   return MODULE_KEYS.reduce(
     (acc, key) => {
-      acc[key] = 'edit';
+      acc[key] = 'none';
       return acc;
     },
     {} as Record<ModuleKey, AccessLevel>,

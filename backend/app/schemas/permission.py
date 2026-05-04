@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List
+from typing import Dict, List
 from uuid import UUID
 
 
@@ -63,3 +63,9 @@ class SetModulePermissionsRequest(BaseModel):
 class ModulePermissionResponse(BaseModel):
     module: str
     access_level: str
+
+
+class CurrentUserModulePermissionsResponse(BaseModel):
+    """GET /auth/me/module-permissions — module keys from ALLOWED_MODULES."""
+
+    permissions: Dict[str, str]
