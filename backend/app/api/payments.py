@@ -8,7 +8,7 @@ from uuid import UUID
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, or_
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_admin
@@ -25,6 +25,7 @@ from app.schemas.payment import (
 )
 from app.utils.activity_logger import log_activity
 from app.utils.permissions import check_user_permission
+from app.utils.branch_filter import resolve_admin_branch_ids
 
 
 router = APIRouter(prefix="/payments", tags=["Payments"])
@@ -150,10 +151,15 @@ def list_payments(
     payment_category: Optional[str] = Query(None, description="Filter by payment_category"),
     currency: Optional[str] = Query(None, description="Filter by currency"),
     is_income: Optional[bool] = Query(None, description="Filter by is_income"),
+    branch_user_id: Optional[UUID] = Query(None, description="Admin only: filter by branch"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     _require_payments_permission(db=db, current_user=current_user)
+
+    branch_ids = resolve_admin_branch_ids(branch_user_id, current_user, db)
+    if branch_ids is not None and not branch_ids:
+        return PaymentListResponse(payments=[], total=0, page=page, page_size=page_size)
 
     conditions = _build_payment_conditions(
         date_from=date_from,
@@ -167,6 +173,13 @@ def list_payments(
     )
 
     query = db.query(Payment).filter(*conditions)
+    if branch_ids is not None:
+        query = query.filter(
+            or_(
+                Payment.employee_user_id.in_(branch_ids),
+                Payment.created_by_user_id.in_(branch_ids),
+            )
+        )
     total = query.count()
     payments = (
         query.order_by(Payment.payment_date.desc(), Payment.created_at.desc())

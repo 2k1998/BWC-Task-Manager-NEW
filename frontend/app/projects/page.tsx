@@ -6,6 +6,8 @@ import ProtectedLayout from '@/components/ProtectedLayout';
 import ProjectCard from '@/components/ProjectCard';
 import CreateProjectModal from '@/components/modals/CreateProjectModal';
 import apiClient from '@/lib/apiClient';
+import { useBranchFilter } from '@/context/BranchFilterContext';
+import { branchQueryParams } from '@/lib/branchFilter';
 import { getErrorMessage } from '@/lib/errorHandler';
 import type { ProjectListResponse, Company } from '@/lib/types';
 import { Button, LoadingSkeleton, ErrorState, EmptyState } from '@/components/ui';
@@ -17,6 +19,7 @@ import { useRequireModuleView } from '@/hooks/useRequireModuleView';
 
 function ProjectsPageContent() {
   const { isLoading: authLoading } = useAuth();
+  const { selectedBranchUserId } = useBranchFilter();
   const { isLoading: permLoading } = usePermissions();
   useRequireModuleView('projects');
   const canViewProjects = useHasPermission('projects', 'view');
@@ -56,7 +59,7 @@ function ProjectsPageContent() {
   useEffect(() => {
     fetchProjects();
     fetchCompanies();
-  }, [statusFilter, companyFilter]);
+  }, [statusFilter, companyFilter, selectedBranchUserId]);
 
   // Sync filters to URL
   useEffect(() => {
@@ -84,7 +87,11 @@ function ProjectsPageContent() {
     try {
       setLoading(true);
       setError('');
-      const params: Record<string, any> = { page: 1, page_size: 50 };
+      const params: Record<string, any> = {
+        page: 1,
+        page_size: 50,
+        ...branchQueryParams(selectedBranchUserId),
+      };
       if (statusFilter) params.status = statusFilter;
       if (companyFilter) params.company_id = companyFilter;
 

@@ -6,12 +6,22 @@ import ProtectedLayout from '@/components/ProtectedLayout';
 import MiniCalendar from '@/components/MiniCalendar';
 import { Card, Badge, EmptyState, LoadingSkeleton, ErrorState } from '@/components/ui';
 import apiClient from '@/lib/apiClient';
+import { useBranchFilter } from '@/context/BranchFilterContext';
+import { branchQueryParams } from '@/lib/branchFilter';
 import { getErrorMessage } from '@/lib/errorHandler';
 import { useAuth } from '@/context/AuthContext';
 import type { Task, Event } from '@/lib/types';
 import Link from 'next/link';
 
 export default function DashboardPage() {
+  return (
+    <ProtectedLayout>
+      <DashboardPageContent />
+    </ProtectedLayout>
+  );
+}
+
+function DashboardPageContent() {
   const t = useTranslations('Dashboard');
   const tTasks = useTranslations('Tasks');
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -19,17 +29,20 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { user: currentUser } = useAuth();
+  const { selectedBranchUserId } = useBranchFilter();
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [selectedBranchUserId]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
       setError(null);
       const [tasksRes, eventsRes] = await Promise.all([
-        apiClient.get('/tasks', { params: { page: 1, page_size: 100 } }),
+        apiClient.get('/tasks', {
+          params: { page: 1, page_size: 100, ...branchQueryParams(selectedBranchUserId) },
+        }),
         apiClient.get('/events', { params: { page: 1, page_size: 100 } }),
       ]);
       setTasks(tasksRes.data.tasks || []);
@@ -112,33 +125,26 @@ export default function DashboardPage() {
   // Strict strict hierarchy: Loading -> Error -> Empty -> Data
   if (loading) {
     return (
-      <ProtectedLayout>
-        <div className="max-w-7xl mx-auto space-y-8">
-           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-8">
-             <div className="lg:col-span-2 space-y-6 sm:space-y-8">
-               <LoadingSkeleton variant="card" count={3} />
-             </div>
-             <div className="space-y-6">
-               <LoadingSkeleton variant="card" count={1} />
-             </div>
-           </div>
+      <div className="max-w-7xl mx-auto space-y-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-8">
+          <div className="lg:col-span-2 space-y-6 sm:space-y-8">
+            <LoadingSkeleton variant="card" count={3} />
+          </div>
+          <div className="space-y-6">
+            <LoadingSkeleton variant="card" count={1} />
+          </div>
         </div>
-      </ProtectedLayout>
+      </div>
     );
   }
 
   if (error) {
-    return (
-      <ProtectedLayout>
-        <ErrorState message={error} onRetry={fetchData} />
-      </ProtectedLayout>
-    );
+    return <ErrorState message={error} onRetry={fetchData} />;
   }
 
   const hasAnyTasks = Object.values(buckets).some(b => b.length > 0);
 
   return (
-    <ProtectedLayout>
       <div className="max-w-7xl mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-8">
           
@@ -242,6 +248,5 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
-    </ProtectedLayout>
   );
 }

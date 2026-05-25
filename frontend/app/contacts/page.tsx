@@ -4,6 +4,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import apiClient from '@/lib/apiClient';
+import { useBranchFilter } from '@/context/BranchFilterContext';
+import { branchQueryParams } from '@/lib/branchFilter';
 import { getErrorMessage } from '@/lib/errorHandler';
 import ProtectedLayout from '@/components/ProtectedLayout';
 import { Badge, Button, Card, EmptyState, ErrorState, Input, LoadingSkeleton, Modal, Table } from '@/components/ui';
@@ -40,6 +42,7 @@ export default function ContactsPage() {
   const tDaily = useTranslations('DailyCalls');
   const tCommon = useTranslations('Common');
   const { user, isLoading: authLoading } = useAuth();
+  const { selectedBranchUserId } = useBranchFilter();
   const { isLoading: permLoading } = usePermissions();
   useRequireModuleView('contacts');
   const canViewContacts = useHasPermission('contacts', 'view');
@@ -81,8 +84,11 @@ export default function ContactsPage() {
       setLoading(true);
       setError('');
 
+      const branchParams = branchQueryParams(selectedBranchUserId);
       const [contactsRes, dailyCallsRes] = await Promise.all([
-        apiClient.get<ContactListResponse>('/contacts?page=1&page_size=100'),
+        apiClient.get<ContactListResponse>('/contacts', {
+          params: { page: 1, page_size: 100, ...branchParams },
+        }),
         apiClient.get<DailyCallListResponse>('/daily-calls?page=1&page_size=100'),
       ]);
 
@@ -93,12 +99,12 @@ export default function ContactsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedBranchUserId]);
 
   useEffect(() => {
     if (!user) return;
     fetchAll();
-  }, [fetchAll, user]);
+  }, [fetchAll, user, selectedBranchUserId]);
 
   const filteredContacts = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();

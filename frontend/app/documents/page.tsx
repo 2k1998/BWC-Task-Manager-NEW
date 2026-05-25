@@ -9,6 +9,8 @@ import { usePermissions } from '@/context/PermissionsContext';
 import { useHasPermission } from '@/hooks/useHasPermission';
 import { useRequireModuleView } from '@/hooks/useRequireModuleView';
 import apiClient from '@/lib/apiClient';
+import { useBranchFilter } from '@/context/BranchFilterContext';
+import { branchQueryParams } from '@/lib/branchFilter';
 import { getErrorMessage } from '@/lib/errorHandler';
 import type { DocumentListResponse } from '@/lib/types';
 
@@ -21,6 +23,7 @@ export default function DocumentsPage() {
   const canViewDocuments = useHasPermission('documents', 'view');
   const canEditDocuments = useHasPermission('documents', 'edit');
   const canDeleteDocuments = useHasPermission('documents', 'delete');
+  const { selectedBranchUserId } = useBranchFilter();
 
   const [documents, setDocuments] = useState<DocumentListResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -30,13 +33,15 @@ export default function DocumentsPage() {
 
   useEffect(() => {
     fetchDocuments();
-  }, []);
+  }, [selectedBranchUserId]);
 
   const fetchDocuments = async () => {
     try {
       setLoading(true);
       setError('');
-      const response = await apiClient.get<DocumentListResponse>('/documents');
+      const response = await apiClient.get<DocumentListResponse>('/documents', {
+        params: { page: 1, page_size: 100, ...branchQueryParams(selectedBranchUserId) },
+      });
       setDocuments(response.data);
     } catch (err: unknown) {
       setError(getErrorMessage(err, 'Failed to load documents'));

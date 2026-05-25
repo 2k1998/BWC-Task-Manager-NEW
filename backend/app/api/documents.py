@@ -1,3 +1,6 @@
+from typing import Optional
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -14,6 +17,7 @@ from app.models.call_notes_file import CallNotesFile
 from app.models.daily_call import DailyCall
 from app.schemas.document import DocumentResponse, DocumentListResponse
 from app.utils.activity_logger import log_activity
+from app.utils.branch_filter import resolve_admin_branch_ids
 from datetime import datetime, timezone
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
@@ -92,6 +96,7 @@ async def upload_document(
 def list_documents(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
+    branch_user_id: Optional[UUID] = Query(None, description="Admin only: filter by branch"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -99,7 +104,13 @@ def list_documents(
     List all documents.
     All users can see all documents (public visibility).
     """
+    branch_ids = resolve_admin_branch_ids(branch_user_id, current_user, db)
+    if branch_ids is not None and not branch_ids:
+        return DocumentListResponse(documents=[], total=0, page=page, page_size=page_size)
+
     query = db.query(Document)
+    if branch_ids is not None:
+        query = query.filter(Document.uploaded_by_user_id.in_(branch_ids))
     
     total = query.count()
     documents = query.order_by(Document.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()

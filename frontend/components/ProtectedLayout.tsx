@@ -7,6 +7,9 @@ import { Menu } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
 import Sidebar from '@/components/Sidebar';
+import BranchFilterSelect from '@/components/branch/BranchFilterSelect';
+import BranchFilterBadge from '@/components/branch/BranchFilterBadge';
+import { BranchFilterProvider } from '@/context/BranchFilterContext';
 import NotificationBell from '@/components/notifications/NotificationBell';
 import PresenceSidebar from '@/components/presence/PresenceSidebar';
 // We might want to move the user profile component here or reuse parts of sidebar.
@@ -86,6 +89,7 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   const isAdmin = user?.user_type === 'Admin';
 
   return (
+    <BranchFilterProvider>
         <div className="flex h-dvh min-h-screen max-w-full bg-brand-silver/15 overflow-x-hidden">
           <Sidebar />
           <div className="flex-1 min-w-0 overflow-hidden flex flex-col transition-all duration-300">
@@ -104,6 +108,8 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
                      </button>
                      <span className="lg:hidden font-bold text-lg bg-clip-text text-transparent bg-brand-bar mr-2">BWC</span>
                      
+                     <BranchFilterSelect />
+
                      {/* Command Palette Trigger */}
                      <button 
                         onClick={cmdSearch.toggle}
@@ -115,8 +121,11 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
                      </button>
                  </div>
 
-                 {/* Right side: Notifications + Profile */}
+                 {/* Right side: Branch badge + Notifications + Profile */}
                  <div className="flex min-w-0 overflow-hidden items-center gap-3 sm:gap-4">
+                     <div className="hidden sm:block">
+                       <BranchFilterBadge className="mb-0" />
+                     </div>
                      {!isPresenceEligible && (
                        <button
                           type="button"
@@ -150,6 +159,9 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
 
             <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden px-4 py-3 sm:p-6 lg:p-8 scroll-smooth">
               <div className="w-full min-w-0 max-w-full">
+                <div className="sm:hidden mb-3">
+                  <BranchFilterBadge className="mb-0" />
+                </div>
                 {children}
               </div>
             </main>
@@ -182,5 +194,6 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
              results={cmdSearch.results} 
           />
         </div>
+    </BranchFilterProvider>
   );
 }

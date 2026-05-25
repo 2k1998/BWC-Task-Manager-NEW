@@ -19,6 +19,8 @@ import { toast } from 'sonner';
 import Link from 'next/link';
 import { getUrgencyDotColor } from '@/lib/urgencyFilter';
 import { extractErrorMessage } from '@/lib/utils';
+import { useBranchFilter } from '@/context/BranchFilterContext';
+import { branchQueryParams } from '@/lib/branchFilter';
 
 type FilterState = {
   status: string | null;
@@ -60,6 +62,7 @@ function TasksPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const { user: currentUser, isLoading: authLoading } = useAuth();
+  const { selectedBranchUserId } = useBranchFilter();
   const { isLoading: permLoading } = usePermissions();
   useRequireModuleView('tasks');
   const canViewTasks = useHasPermission('tasks', 'view');
@@ -97,7 +100,7 @@ function TasksPageContent() {
 
   useEffect(() => {
     fetchTasks();
-  }, [filterState, page]);
+  }, [filterState, page, selectedBranchUserId]);
 
   // Sync filters to URL
   useEffect(() => {
@@ -182,7 +185,11 @@ function TasksPageContent() {
       setLoading(true);
       setError(null);
 
-      const params: Record<string, string | number> = { page, page_size: 100 };
+      const params: Record<string, string | number> = {
+        page,
+        page_size: 100,
+        ...branchQueryParams(selectedBranchUserId),
+      };
       if (filterState.status) params.status_filter = filterState.status;
       if (filterState.urgency) params.urgency_filter = filterState.urgency;
       if (filterState.assigned_user_id) params.assigned_user_filter = filterState.assigned_user_id;

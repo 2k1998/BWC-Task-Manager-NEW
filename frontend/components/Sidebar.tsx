@@ -10,6 +10,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import BrandingLogo from '@/components/BrandingLogo';
 import { useHasPermission } from '@/hooks/useHasPermission';
 import type { ModuleKey } from '@/lib/modulePermissions';
+import { canManageUsers } from '@/lib/userHierarchy';
 
 type NavItem = {
   name: string;
@@ -33,6 +34,7 @@ export default function Sidebar({ mobile = false, isOpen = false, onNavigate, on
   const { user, logout } = useAuth();
   const { language, setLanguage } = useLanguage();
   const isAdmin = user?.user_type === 'Admin';
+  const canManageHierarchyUsers = canManageUsers(user?.user_type);
 
   const canViewTasks = useHasPermission('tasks', 'view');
   const canViewProjects = useHasPermission('projects', 'view');
@@ -90,7 +92,7 @@ export default function Sidebar({ mobile = false, isOpen = false, onNavigate, on
     )},
   ];
 
-  if (isAdmin) {
+  if (canManageHierarchyUsers) {
     navItems.push({ name: tNav('users'), href: '/admin/users', icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
     )});
@@ -131,7 +133,7 @@ export default function Sidebar({ mobile = false, isOpen = false, onNavigate, on
         )}
         {navItems.map((item) => {
           // If it's the Users link and user is not admin, skip (double check)
-          if (item.href === '/admin/users' && !isAdmin) return null;
+          if (item.href === '/admin/users' && !canManageHierarchyUsers) return null;
           if (item.module && !moduleView[item.module]) return null;
           
           const isActive = pathname.startsWith(item.href);

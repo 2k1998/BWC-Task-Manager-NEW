@@ -15,8 +15,8 @@ class UserCreate(BaseModel):
     first_name: str = Field(..., min_length=1, max_length=100)
     last_name: str = Field(..., min_length=1, max_length=100)
     user_type: str = Field(..., description="Must be one of: Agent, Head, Manager, Pillar, Admin")
-    manager_id: Optional[UUID] = None
-    
+    parent_id: Optional[UUID] = None
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -25,7 +25,7 @@ class UserCreate(BaseModel):
                 "first_name": "John",
                 "last_name": "Doe",
                 "user_type": "Agent",
-                "manager_id": None
+                "parent_id": None
             }
         }
 
@@ -38,7 +38,7 @@ class UserUpdate(BaseModel):
     last_name: Optional[str] = Field(None, min_length=1, max_length=100)
     user_type: Optional[str] = None
     is_active: Optional[bool] = None
-    manager_id: Optional[UUID] = None
+    parent_id: Optional[UUID] = None
 
 
 class UserResponse(BaseModel):
@@ -51,10 +51,10 @@ class UserResponse(BaseModel):
     user_type: str
     is_active: bool
     force_password_change: bool
-    manager_id: Optional[UUID]
+    parent_id: Optional[UUID]
     created_at: datetime
     updated_at: datetime
-    
+
     class Config:
         from_attributes = True
 
@@ -65,3 +65,19 @@ class UserListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class UserTreeNodeResponse(BaseModel):
+    """Nested user node for hierarchy tree."""
+    id: UUID
+    full_name: str
+    email: str
+    user_type: str
+    parent_id: Optional[UUID]
+    children: list["UserTreeNodeResponse"] = []
+
+    class Config:
+        from_attributes = True
+
+
+UserTreeNodeResponse.model_rebuild()

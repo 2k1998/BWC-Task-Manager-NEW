@@ -6,6 +6,8 @@ import { toast } from 'sonner';
 import ProtectedLayout from '@/components/ProtectedLayout';
 import PaymentModal from '@/components/modals/PaymentModal';
 import apiClient from '@/lib/apiClient';
+import { useBranchFilter } from '@/context/BranchFilterContext';
+import { branchQueryParams } from '@/lib/branchFilter';
 import { getErrorMessage } from '@/lib/errorHandler';
 import type { Company, Payment, PaymentListResponse, User } from '@/lib/types';
 import { useAuth } from '@/context/AuthContext';
@@ -70,6 +72,7 @@ export default function PaymentsPage() {
   const canDeletePayments = useHasPermission('payments', 'delete');
   const currentUserId = user?.id ?? null;
   const isAdmin = user?.user_type === 'Admin';
+  const { selectedBranchUserId } = useBranchFilter();
 
   const fetchCompanies = useCallback(async () => {
     try {
@@ -147,7 +150,7 @@ export default function PaymentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [companyId, currency, employeeUserId, fromDate, isIncomeOnly, paymentCategory, paymentType, toDate]);
+  }, [companyId, currency, employeeUserId, fromDate, isIncomeOnly, paymentCategory, paymentType, toDate, selectedBranchUserId]);
 
   useEffect(() => {
     fetchPayments();

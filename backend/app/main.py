@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.auth import router as auth_router
 from app.api.admin_users import router as admin_users_router
+from app.api.admin_branch import router as admin_branch_router
 from app.api.companies import router as companies_router
 from app.api.admin_departments import router as admin_departments_router
 from app.api.teams import router as teams_router
@@ -64,6 +65,7 @@ app.add_middleware(
 # Register routers
 app.include_router(auth_router)
 app.include_router(admin_users_router)
+app.include_router(admin_branch_router)
 app.include_router(companies_router)
 app.include_router(admin_departments_router)
 app.include_router(teams_router)

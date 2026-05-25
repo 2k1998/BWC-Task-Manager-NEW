@@ -81,3 +81,15 @@ def require_admin(current_user: User = Depends(get_current_user)) -> User:
         )
     
     return current_user
+
+
+def require_hierarchy_manager(current_user: User = Depends(get_current_user)) -> User:
+    """Require Admin, Pillar, Manager, or Head."""
+    from app.utils.hierarchy import HIERARCHY_MANAGER_TYPES
+
+    if current_user.user_type not in HIERARCHY_MANAGER_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient privileges",
+        )
+    return current_user

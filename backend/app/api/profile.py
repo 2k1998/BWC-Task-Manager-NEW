@@ -22,7 +22,7 @@ def _profile_to_response(user: User, profile: UserProfile) -> ProfileResponse:
         last_name=user.last_name,
         user_type=user.user_type,
         is_active=user.is_active,
-        manager_id=user.manager_id,
+        parent_id=user.parent_id,
         created_at=user.created_at,
         updated_at=user.updated_at,
         bio=profile.bio,

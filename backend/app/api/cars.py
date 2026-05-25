@@ -16,6 +16,7 @@ from app.models.car_expense import CarExpense
 from app.models.car_income import CarIncome
 from app.models.car_maintenance import CarMaintenance
 from app.models.user import User
+from app.utils.branch_filter import resolve_admin_branch_ids
 from app.schemas.car import (
     CarCreate,
     CarDetailResponse,
@@ -118,10 +119,14 @@ def list_cars(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     status_filter: Optional[str] = Query(None, alias="status", description="Filter by car status"),
+    branch_user_id: Optional[UUID] = Query(None, description="Admin only: filter by branch"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     _require_cars_permission(db=db, current_user=current_user)
+
+    # Cars have no user ownership; branch_user_id is accepted but does not narrow results.
+    resolve_admin_branch_ids(branch_user_id, current_user, db)
 
     query = db.query(Car)
     if status_filter is not None:

@@ -6,12 +6,27 @@ import string
 from uuid import UUID
 
 from app.core.database import get_db
-from app.core.deps import require_admin
+from app.core.deps import require_admin, require_hierarchy_manager
 from app.core.security import hash_password
 from app.models.user import User
 from app.models.permission import UserPagePermission, UserPermission
 from app.models.page import Page
-from app.schemas.user import UserCreate, UserUpdate, UserResponse, UserListResponse, ALLOWED_USER_TYPES
+from app.schemas.user import (
+    UserCreate,
+    UserUpdate,
+    UserResponse,
+    UserListResponse,
+    UserTreeNodeResponse,
+    ALLOWED_USER_TYPES,
+)
+from app.utils.hierarchy import (
+    get_descendant_ids,
+    get_visible_user_ids,
+    validate_can_manage_target,
+    validate_creatable_role,
+    validate_parent_for_role,
+    validate_parent_in_actor_subtree,
+)
 from app.schemas.permission import (
     SetPermissionsRequest,
     PagePermissionResponse,
@@ -37,9 +52,89 @@ def _build_user_module_permissions_response(user_id: UUID, db: Session) -> List[
     return get_user_module_permissions_rows(db, user_id)
 
 
+def _user_to_tree_node(user: User) -> UserTreeNodeResponse:
+    full_name = f"{user.first_name} {user.last_name}".strip()
+    return UserTreeNodeResponse(
+        id=user.id,
+        full_name=full_name,
+        email=user.email,
+        user_type=user.user_type,
+        parent_id=user.parent_id,
+        children=[],
+    )
+
+
+def _build_tree_nodes(users: list[User]) -> list[UserTreeNodeResponse]:
+    nodes = {u.id: _user_to_tree_node(u) for u in users}
+    roots: list[UserTreeNodeResponse] = []
+    for u in users:
+        node = nodes[u.id]
+        if u.parent_id and u.parent_id in nodes:
+            nodes[u.parent_id].children.append(node)
+        else:
+            roots.append(node)
+    return roots
+
+
+def _scoped_users_for_tree(actor: User, db: Session) -> list[User]:
+    if actor.user_type == "Admin":
+        return db.query(User).filter(User.is_active.is_(True)).all()
+    visible_ids = get_visible_user_ids(actor, db)
+    if not visible_ids:
+        return []
+    return db.query(User).filter(User.id.in_(visible_ids)).all()
+
+
+def _apply_user_update(
+    user: User,
+    user_data: UserUpdate,
+    actor: User,
+    db: Session,
+) -> None:
+    effective_role = user_data.user_type if user_data.user_type is not None else user.user_type
+
+    if user_data.email is not None:
+        existing = db.query(User).filter(User.email == user_data.email, User.id != user.id).first()
+        if existing:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+        user.email = user_data.email
+
+    if user_data.username is not None:
+        existing = db.query(User).filter(User.username == user_data.username, User.id != user.id).first()
+        if existing:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already taken")
+        user.username = user_data.username
+
+    if user_data.first_name is not None:
+        user.first_name = user_data.first_name
+
+    if user_data.last_name is not None:
+        user.last_name = user_data.last_name
+
+    if user_data.user_type is not None:
+        if user_data.user_type not in ALLOWED_USER_TYPES:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid user_type. Must be one of: {', '.join(ALLOWED_USER_TYPES)}",
+            )
+        if actor.user_type != "Admin":
+            validate_creatable_role(actor.user_type, user_data.user_type)
+        user.user_type = user_data.user_type
+
+    if user_data.is_active is not None:
+        user.is_active = user_data.is_active
+
+    if "parent_id" in user_data.model_fields_set:
+        parent_id = user_data.parent_id
+        validate_parent_for_role(effective_role, parent_id, db, editing_user_id=user.id)
+        if parent_id is not None:
+            validate_parent_in_actor_subtree(actor, parent_id, db)
+        user.parent_id = parent_id
+
+
 @router.get("/me", response_model=UserResponse)
 def get_current_user_info(
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(require_hierarchy_manager),
 ):
     """
     Get current admin user's information.
@@ -51,46 +146,31 @@ def get_current_user_info(
 def create_user(
     user_data: UserCreate,
     db: Session = Depends(get_db),
-    admin: User = Depends(require_admin)
+    actor: User = Depends(require_hierarchy_manager),
 ):
     """
-    Create a new user (admin only).
+    Create a new user (hierarchy managers).
     Generates temporary password and forces password change on first login.
     """
-    # Validate user_type
     if user_data.user_type not in ALLOWED_USER_TYPES:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid user_type. Must be one of: {', '.join(ALLOWED_USER_TYPES)}"
+            detail=f"Invalid user_type. Must be one of: {', '.join(ALLOWED_USER_TYPES)}",
         )
-    
-    # Check if email already exists
+
+    validate_creatable_role(actor.user_type, user_data.user_type)
+    validate_parent_for_role(user_data.user_type, user_data.parent_id, db)
+    if user_data.parent_id is not None:
+        validate_parent_in_actor_subtree(actor, user_data.parent_id, db)
+
     if db.query(User).filter(User.email == user_data.email).first():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
-        )
-    
-    # Check if username already exists
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+
     if db.query(User).filter(User.username == user_data.username).first():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username already taken"
-        )
-    
-    # Validate manager exists if provided
-    if user_data.manager_id:
-        manager = db.query(User).filter(User.id == user_data.manager_id).first()
-        if not manager:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Manager not found"
-            )
-    
-    # Generate temporary password
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already taken")
+
     temp_password = generate_temporary_password()
-    
-    # Create user
+
     new_user = User(
         email=user_data.email,
         username=user_data.username,
@@ -98,32 +178,29 @@ def create_user(
         last_name=user_data.last_name,
         hashed_password=hash_password(temp_password),
         user_type=user_data.user_type,
-        manager_id=user_data.manager_id,
+        parent_id=user_data.parent_id,
         force_password_change=True,
-        is_active=True
+        is_active=True,
     )
-    
+
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-    
-    # Create audit log
+
     create_audit_log(
         db=db,
-        admin_user_id=str(admin.id),
+        admin_user_id=str(actor.id),
         target_user_id=str(new_user.id),
         action="create_user",
         before_state=None,
-        # REDACTED: Do not log generated passwords
         after_state={
             "email": new_user.email,
             "username": new_user.username,
             "user_type": new_user.user_type,
-            "manager_id": str(new_user.manager_id) if new_user.manager_id else None
-        }
+            "parent_id": str(new_user.parent_id) if new_user.parent_id else None,
+        },
     )
-    
-    # Return explicit structure with plaintext password (ONCE)
+
     return {
         "user_id": new_user.id,
         "email": new_user.email,
@@ -132,8 +209,8 @@ def create_user(
         "last_name": new_user.last_name,
         "user_type": new_user.user_type,
         "is_active": new_user.is_active,
-        "manager_id": new_user.manager_id,
-        "generated_password": temp_password
+        "parent_id": new_user.parent_id,
+        "generated_password": temp_password,
     }
 
 
@@ -144,56 +221,62 @@ def list_users(
     user_type: Optional[str] = None,
     is_active: Optional[bool] = None,
     db: Session = Depends(get_db),
-    admin: User = Depends(require_admin)
+    actor: User = Depends(require_hierarchy_manager),
 ):
     """
-    List all users with pagination and filters (admin only).
+    List users with pagination. Admin: all. Others: descendants only.
     """
     query = db.query(User)
-    
-    # Apply filters
+
+    if actor.user_type != "Admin":
+        descendant_ids = get_descendant_ids(actor.id, db)
+        if not descendant_ids:
+            return UserListResponse(users=[], total=0, page=page, page_size=page_size)
+        query = query.filter(User.id.in_(descendant_ids))
+
     if user_type:
         if user_type not in ALLOWED_USER_TYPES:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid user_type. Must be one of: {', '.join(ALLOWED_USER_TYPES)}"
+                detail=f"Invalid user_type. Must be one of: {', '.join(ALLOWED_USER_TYPES)}",
             )
         query = query.filter(User.user_type == user_type)
-    
+
     if is_active is not None:
         query = query.filter(User.is_active == is_active)
-    
-    # Get total count
+
     total = query.count()
-    
-    # Apply pagination
     users = query.offset((page - 1) * page_size).limit(page_size).all()
-    
-    return UserListResponse(
-        users=users,
-        total=total,
-        page=page,
-        page_size=page_size
-    )
+
+    return UserListResponse(users=users, total=total, page=page, page_size=page_size)
+
+
+@router.get("/tree", response_model=list[UserTreeNodeResponse])
+def get_users_tree(
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_hierarchy_manager),
+):
+    """Nested hierarchy tree. Admin: full tree. Others: self + descendants."""
+    users = _scoped_users_for_tree(actor, db)
+    return _build_tree_nodes(users)
 
 
 @router.get("/{user_id}", response_model=UserResponse)
 def get_user(
     user_id: UUID,
     db: Session = Depends(get_db),
-    admin: User = Depends(require_admin)
+    actor: User = Depends(require_hierarchy_manager),
 ):
-    """
-    Get user details by ID (admin only).
-    """
+    """Get user details by ID (scoped to branch for non-Admin)."""
     user = db.query(User).filter(User.id == user_id).first()
-    
+
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    if actor.user_type != "Admin":
+        if user_id != actor.id:
+            validate_can_manage_target(actor, user_id, db)
+
     return user
 
 
@@ -258,25 +341,18 @@ def patch_user_module_permissions(
     return _build_user_module_permissions_response(user_id=user_id, db=db)
 
 
-@router.put("/{user_id}", response_model=UserResponse)
-def update_user(
+def _update_user_impl(
     user_id: UUID,
     user_data: UserUpdate,
-    db: Session = Depends(get_db),
-    admin: User = Depends(require_admin)
-):
-    """
-    Update user details (admin only).
-    """
+    db: Session,
+    actor: User,
+) -> User:
     user = db.query(User).filter(User.id == user_id).first()
-    
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
-    
-    # Capture before state
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    validate_can_manage_target(actor, user_id, db)
+
     before_state = {
         "email": user.email,
         "username": user.username,
@@ -284,67 +360,14 @@ def update_user(
         "last_name": user.last_name,
         "user_type": user.user_type,
         "is_active": user.is_active,
-        "manager_id": str(user.manager_id) if user.manager_id else None
+        "parent_id": str(user.parent_id) if user.parent_id else None,
     }
-    
-    # Validate and update fields
-    if user_data.email is not None:
-        # Check if email already exists (excluding current user)
-        existing = db.query(User).filter(User.email == user_data.email, User.id != user_id).first()
-        if existing:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already registered"
-            )
-        user.email = user_data.email
-    
-    if user_data.username is not None:
-        # Check if username already exists (excluding current user)
-        existing = db.query(User).filter(User.username == user_data.username, User.id != user_id).first()
-        if existing:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Username already taken"
-            )
-        user.username = user_data.username
-    
-    if user_data.first_name is not None:
-        user.first_name = user_data.first_name
-    
-    if user_data.last_name is not None:
-        user.last_name = user_data.last_name
-    
-    if user_data.user_type is not None:
-        if user_data.user_type not in ALLOWED_USER_TYPES:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid user_type. Must be one of: {', '.join(ALLOWED_USER_TYPES)}"
-            )
-        user.user_type = user_data.user_type
-    
-    if user_data.is_active is not None:
-        user.is_active = user_data.is_active
-    
-    if user_data.manager_id is not None:
-        # Validate manager exists
-        manager = db.query(User).filter(User.id == user_data.manager_id).first()
-        if not manager:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Manager not found"
-            )
-        # Prevent circular reference (user cannot be their own manager)
-        if user_data.manager_id == user_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="User cannot be their own manager"
-            )
-        user.manager_id = user_data.manager_id
-    
+
+    _apply_user_update(user, user_data, actor, db)
+
     db.commit()
     db.refresh(user)
-    
-    # Capture after state
+
     after_state = {
         "email": user.email,
         "username": user.username,
@@ -352,20 +375,41 @@ def update_user(
         "last_name": user.last_name,
         "user_type": user.user_type,
         "is_active": user.is_active,
-        "manager_id": str(user.manager_id) if user.manager_id else None
+        "parent_id": str(user.parent_id) if user.parent_id else None,
     }
-    
-    # Create audit log
+
     create_audit_log(
         db=db,
-        admin_user_id=str(admin.id),
+        admin_user_id=str(actor.id),
         target_user_id=str(user.id),
         action="update_user",
         before_state=before_state,
-        after_state=after_state
+        after_state=after_state,
     )
-    
+
     return user
+
+
+@router.put("/{user_id}", response_model=UserResponse)
+def update_user(
+    user_id: UUID,
+    user_data: UserUpdate,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_hierarchy_manager),
+):
+    """Update user details (PUT)."""
+    return _update_user_impl(user_id, user_data, db, actor)
+
+
+@router.patch("/{user_id}", response_model=UserResponse)
+def patch_user(
+    user_id: UUID,
+    user_data: UserUpdate,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_hierarchy_manager),
+):
+    """Update user details (PATCH)."""
+    return _update_user_impl(user_id, user_data, db, actor)
 
 
 
@@ -553,24 +597,20 @@ def deactivate_user(  # Legacy POST endpoint kept for backward compatibility
 def deactivate_user_patch(
     user_id: UUID,
     db: Session = Depends(get_db),
-    admin: User = Depends(require_admin)
+    actor: User = Depends(require_hierarchy_manager),
 ):
-    """
-    Deactivate a user (admin only).
-    PATCH variant per current API spec.
-    """
+    """Deactivate a user. Non-Admin: descendants only."""
     user = db.query(User).filter(User.id == user_id).first()
 
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    if user.id == admin.id:
+    validate_can_manage_target(actor, user_id, db)
+
+    if user.id == actor.id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot deactivate your own account"
+            detail="Cannot deactivate your own account",
         )
 
     before_state = {"is_active": user.is_active}
@@ -580,11 +620,11 @@ def deactivate_user_patch(
 
     create_audit_log(
         db=db,
-        admin_user_id=str(admin.id),
+        admin_user_id=str(actor.id),
         target_user_id=str(user.id),
         action="deactivate_user",
         before_state=before_state,
-        after_state=after_state
+        after_state=after_state,
     )
 
     return {"message": "User deactivated successfully"}
@@ -594,18 +634,15 @@ def deactivate_user_patch(
 def activate_user(
     user_id: UUID,
     db: Session = Depends(get_db),
-    admin: User = Depends(require_admin)
+    actor: User = Depends(require_hierarchy_manager),
 ):
-    """
-    Activate a user (admin only).
-    """
+    """Activate a user. Non-Admin: descendants only."""
     user = db.query(User).filter(User.id == user_id).first()
 
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    validate_can_manage_target(actor, user_id, db)
 
     before_state = {"is_active": user.is_active}
     user.is_active = True
@@ -614,11 +651,11 @@ def activate_user(
 
     create_audit_log(
         db=db,
-        admin_user_id=str(admin.id),
+        admin_user_id=str(actor.id),
         target_user_id=str(user.id),
         action="activate_user",
         before_state=before_state,
-        after_state=after_state
+        after_state=after_state,
     )
 
     return {"message": "User activated successfully"}

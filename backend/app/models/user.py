@@ -19,11 +19,15 @@ class User(BaseModel):
     is_active = Column(Boolean, default=True, nullable=False)
     force_password_change = Column(Boolean, default=True, nullable=False)
     
-    # Hierarchy: self-referential foreign key
+    # Legacy hierarchy column (unused by app logic; parent_id is canonical)
     manager_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=True)
-    
+
+    # Hierarchy: self-referential parent/children tree
+    parent_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
     # Relationships
-    manager = relationship("User", remote_side=[id], backref="subordinates")
+    parent = relationship("User", remote_side=[id], foreign_keys=[parent_id], back_populates="children")
+    children = relationship("User", foreign_keys=[parent_id], back_populates="parent")
     page_permissions = relationship("UserPagePermission", back_populates="user", cascade="all, delete-orphan")
     module_permissions = relationship("UserPermission", back_populates="user", cascade="all, delete-orphan")
     refresh_tokens = relationship("AuthRefreshToken", back_populates="user", cascade="all, delete-orphan")

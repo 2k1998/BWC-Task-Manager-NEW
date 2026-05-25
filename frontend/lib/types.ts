@@ -33,7 +33,7 @@ export interface User {
   last_name: string;
   user_type: string;
   is_active: boolean;
-  manager_id: string | null;
+  parent_id: string | null;
   created_at: string;
   updated_at: string;
   language?: "en" | "el";

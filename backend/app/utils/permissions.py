@@ -63,7 +63,7 @@ def get_user_hierarchy(db: Session, user_id: UUID) -> List[User]:
     subordinates = []
     
     # Get direct subordinates
-    direct_subordinates = db.query(User).filter(User.manager_id == user_id).all()
+    direct_subordinates = db.query(User).filter(User.parent_id == user_id).all()
     
     for subordinate in direct_subordinates:
         subordinates.append(subordinate)

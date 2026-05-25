@@ -65,10 +65,8 @@ export default function TaskDetailPage() {
 
   const fetchSubordinates = async () => {
     try {
-      const response = await apiClient.get('/admin/users');
-      const allUsers = response.data.users || [];
-      const subs = allUsers.filter((u: any) => u.manager_id === currentUser?.id);
-      setSubordinates(subs);
+      const response = await apiClient.get('/users', { params: { limit: 100 } });
+      setSubordinates(response.data.users || []);
     } catch (err) {
       console.error('Failed to load subordinates');
     }

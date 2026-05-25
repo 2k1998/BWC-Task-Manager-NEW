@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from typing import Optional
+from uuid import UUID
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
@@ -14,6 +15,7 @@ from app.schemas.project import (
 )
 from app.utils.activity_logger import log_activity
 from app.utils.notification_service import create_notification
+from app.utils.branch_filter import resolve_admin_branch_ids
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
 
@@ -125,6 +127,7 @@ def list_projects(
     company_filter: Optional[str] = Query(None, description="Filter by company_id"),
     manager_filter: Optional[str] = Query(None, description="Filter by project_manager_user_id"),
     name_search: Optional[str] = Query(None, description="Search by name"),
+    branch_user_id: Optional[UUID] = Query(None, description="Admin only: filter by branch"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -132,8 +135,19 @@ def list_projects(
     List projects with visibility filtering.
     Users see only projects they own or manage.
     """
+    branch_ids = resolve_admin_branch_ids(branch_user_id, current_user, db)
+    if branch_ids is not None and not branch_ids:
+        return ProjectListResponse(projects=[], total=0, page=page, page_size=page_size)
+
     visibility_filter = build_visibility_filter(current_user)
     query = db.query(Project).filter(visibility_filter)
+    if branch_ids is not None:
+        query = query.filter(
+            or_(
+                Project.owner_user_id.in_(branch_ids),
+                Project.project_manager_user_id.in_(branch_ids),
+            )
+        )
     
     if status_filter:
         query = query.filter(Project.status == status_filter)

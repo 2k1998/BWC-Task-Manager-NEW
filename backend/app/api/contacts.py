@@ -1,6 +1,7 @@
 import csv
 from io import StringIO
 from typing import Optional
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from sqlalchemy.orm import Session
@@ -19,6 +20,7 @@ from app.schemas.contact import (
     ContactListResponse,
 )
 from app.utils.activity_logger import log_activity
+from app.utils.branch_filter import resolve_admin_branch_ids
 
 
 router = APIRouter(prefix="/contacts", tags=["Contacts"])
@@ -81,13 +83,20 @@ def list_contacts(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     search: Optional[str] = Query(None, description="Search by first/last name or phone"),
+    branch_user_id: Optional[UUID] = Query(None, description="Admin only: filter by branch"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
     List current user's contacts only (paginated + optional search).
     """
-    query = db.query(Contact).filter(Contact.user_id == current_user.id)
+    branch_ids = resolve_admin_branch_ids(branch_user_id, current_user, db)
+    if branch_ids is not None:
+        if not branch_ids:
+            return ContactListResponse(contacts=[], total=0, page=page, page_size=page_size)
+        query = db.query(Contact).filter(Contact.user_id.in_(branch_ids))
+    else:
+        query = db.query(Contact).filter(Contact.user_id == current_user.id)
 
     if search:
         like = f"%{search}%"

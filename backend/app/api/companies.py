@@ -16,6 +16,7 @@ from app.schemas.company import CompanyCreate, CompanyListResponse, CompanyRespo
 from app.utils.activity_logger import log_activity
 from app.utils.notification_service import create_notification
 from app.utils.permissions import check_user_permission
+from app.utils.branch_filter import resolve_admin_branch_ids
 
 router = APIRouter(tags=["Companies"])
 
@@ -125,12 +126,28 @@ def list_companies(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     name_search: Optional[str] = Query(None, description="Search by name"),
+    branch_user_id: Optional[UUID] = Query(None, description="Admin only: filter by branch"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     _require_companies_read(db=db, current_user=current_user)
 
+    branch_ids = resolve_admin_branch_ids(branch_user_id, current_user, db)
+    if branch_ids is not None and not branch_ids:
+        return CompanyListResponse(companies=[], total=0, page=page, page_size=page_size)
+
     query = db.query(Company).filter(Company.deleted_at.is_(None))
+    if branch_ids is not None:
+        query = query.filter(
+            Company.id.in_(
+                db.query(Task.company_id)
+                .filter(
+                    (Task.owner_user_id.in_(branch_ids))
+                    | (Task.assigned_user_id.in_(branch_ids))
+                )
+                .distinct()
+            )
+        )
     if name_search:
         query = query.filter(Company.name.ilike(f"%{name_search}%"))
 

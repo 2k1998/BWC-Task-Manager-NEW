@@ -10,6 +10,8 @@ import { usePermissions } from '@/context/PermissionsContext';
 import { useHasPermission } from '@/hooks/useHasPermission';
 import { useRequireModuleView } from '@/hooks/useRequireModuleView';
 import apiClient from '@/lib/apiClient';
+import { useBranchFilter } from '@/context/BranchFilterContext';
+import { branchQueryParams } from '@/lib/branchFilter';
 import { getErrorMessage } from '@/lib/errorHandler';
 import type { Car, CarListResponse } from '@/lib/types';
 import { Badge, Button, Card, EmptyState, ErrorState, Input, LoadingSkeleton, Select, Table } from '@/components/ui';
@@ -22,6 +24,7 @@ export default function CarsPage() {
   const canEditCars = useHasPermission('cars', 'edit');
   const canDeleteCars = useHasPermission('cars', 'delete');
   const router = useRouter();
+  const { selectedBranchUserId } = useBranchFilter();
 
   const [cars, setCars] = useState<Car[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,7 +38,11 @@ export default function CarsPage() {
       setLoading(true);
       setError('');
 
-      const params: Record<string, unknown> = { page: 1, page_size: 100 };
+      const params: Record<string, unknown> = {
+        page: 1,
+        page_size: 100,
+        ...branchQueryParams(selectedBranchUserId),
+      };
       if (statusFilter) params.status = statusFilter;
       if (searchQuery.trim()) params.search = searchQuery.trim();
 
@@ -46,7 +53,7 @@ export default function CarsPage() {
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, statusFilter]);
+  }, [searchQuery, statusFilter, selectedBranchUserId]);
 
   useEffect(() => {
     fetchCars();

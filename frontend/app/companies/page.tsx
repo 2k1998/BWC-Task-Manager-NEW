@@ -6,6 +6,8 @@ import { usePermissions } from '@/context/PermissionsContext';
 import { useHasPermission } from '@/hooks/useHasPermission';
 import { useRequireModuleView } from '@/hooks/useRequireModuleView';
 import apiClient from '@/lib/apiClient';
+import { useBranchFilter } from '@/context/BranchFilterContext';
+import { branchQueryParams } from '@/lib/branchFilter';
 import { getErrorMessage } from '@/lib/errorHandler';
 import {
   Button,
@@ -36,19 +38,22 @@ export default function CompaniesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const { selectedBranchUserId } = useBranchFilter();
 
   const fetchCompanies = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
-      const res = await apiClient.get<CompanyListResponse>('/companies?page=1&page_size=100');
+      const res = await apiClient.get<CompanyListResponse>('/companies', {
+        params: { page: 1, page_size: 100, ...branchQueryParams(selectedBranchUserId) },
+      });
       setCompanies(res.data.companies || []);
     } catch (err: any) {
       setError(getErrorMessage(err, 'Failed to fetch companies'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedBranchUserId]);
 
   useEffect(() => {
     fetchCompanies();

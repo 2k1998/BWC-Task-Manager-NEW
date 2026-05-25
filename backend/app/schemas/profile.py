@@ -30,7 +30,7 @@ class ProfileResponse(BaseModel):
     last_name: str
     user_type: str
     is_active: bool
-    manager_id: Optional[UUID]
+    parent_id: Optional[UUID]
     created_at: datetime
     updated_at: datetime
 
