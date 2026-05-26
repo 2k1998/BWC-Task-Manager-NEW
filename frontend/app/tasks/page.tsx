@@ -7,6 +7,7 @@ import { SlidersHorizontal } from 'lucide-react';
 import ProtectedLayout from '@/components/ProtectedLayout';
 import TaskBoard from '@/components/TaskBoard';
 import CreateTaskModal from '@/components/modals/CreateTaskModal';
+import TaskDetailModal from '@/components/TaskDetailModal';
 import { Button, LoadingSkeleton, ErrorState, Badge } from '@/components/ui';
 import type { Task } from '@/lib/types';
 import apiClient from '@/lib/apiClient';
@@ -16,7 +17,6 @@ import { usePermissions } from '@/context/PermissionsContext';
 import { useHasPermission } from '@/hooks/useHasPermission';
 import { useRequireModuleView } from '@/hooks/useRequireModuleView';
 import { toast } from 'sonner';
-import Link from 'next/link';
 import { getUrgencyDotColor } from '@/lib/urgencyFilter';
 import { extractErrorMessage } from '@/lib/utils';
 import { useBranchFilter } from '@/context/BranchFilterContext';
@@ -61,6 +61,7 @@ function TasksPageContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const { user: currentUser, isLoading: authLoading } = useAuth();
   const { selectedBranchUserId } = useBranchFilter();
   const { isLoading: permLoading } = usePermissions();
@@ -507,7 +508,19 @@ function TasksPageContent() {
                 '-';
               const urgencyDot = getUrgencyDotColor(urgencyLabel) || '#9CA3AF';
               return (
-                <Link key={task.id} href={`/tasks/${task.id}`} className="block">
+                <div
+                  key={task.id}
+                  role="button"
+                  tabIndex={0}
+                  className="block cursor-pointer"
+                  onClick={() => setSelectedTaskId(task.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setSelectedTaskId(task.id);
+                    }
+                  }}
+                >
                   <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-3">
                     <div className="flex items-start justify-between gap-3">
                       <p className="font-medium text-gray-900">{task.title}</p>
@@ -525,7 +538,7 @@ function TasksPageContent() {
                       {task.deadline ? new Date(task.deadline).toLocaleDateString() : '-'}
                     </div>
                   </div>
-                </Link>
+                </div>
               );
             })}
           </div>
@@ -542,6 +555,7 @@ function TasksPageContent() {
             }
             canEditTasks={canEditTasks}
             canDeleteTasks={canDeleteTasks}
+            onTaskClick={(id) => setSelectedTaskId(id)}
           />
         </div>
       </div>
@@ -555,6 +569,14 @@ function TasksPageContent() {
             }}
         />
       )}
+
+      <TaskDetailModal
+        taskId={selectedTaskId}
+        isOpen={!!selectedTaskId}
+        onClose={() => setSelectedTaskId(null)}
+        onTaskUpdated={fetchTasks}
+        onTaskDeleted={(id) => setTasks((prev) => prev.filter((t) => t.id !== id))}
+      />
     </ProtectedLayout>
   );
 }

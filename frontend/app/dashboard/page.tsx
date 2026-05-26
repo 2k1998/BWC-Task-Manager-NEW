@@ -11,7 +11,7 @@ import { branchQueryParams } from '@/lib/branchFilter';
 import { getErrorMessage } from '@/lib/errorHandler';
 import { useAuth } from '@/context/AuthContext';
 import type { Task, Event } from '@/lib/types';
-import Link from 'next/link';
+import TaskDetailModal from '@/components/TaskDetailModal';
 
 export default function DashboardPage() {
   return (
@@ -28,6 +28,7 @@ function DashboardPageContent() {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const { user: currentUser } = useAuth();
   const { selectedBranchUserId } = useBranchFilter();
 
@@ -145,6 +146,7 @@ function DashboardPageContent() {
   const hasAnyTasks = Object.values(buckets).some(b => b.length > 0);
 
   return (
+    <>
       <div className="max-w-7xl mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-8">
           
@@ -182,7 +184,19 @@ function DashboardPageContent() {
                   {/* tasks inside the box */}
                   <div className="p-4 space-y-3 bg-white">
                     {sectionTasks.map((task: Task) => (
-                      <Link key={task.id} href={`/tasks/${task.id}`} className="block group">
+                      <div
+                        key={task.id}
+                        role="button"
+                        tabIndex={0}
+                        className="block group cursor-pointer"
+                        onClick={() => setSelectedTaskId(task.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            setSelectedTaskId(task.id);
+                          }
+                        }}
+                      >
                         <Card 
                           variant="default" 
                           className="hover:bg-gray-50 transition-colors py-3 px-4 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between group-hover:shadow-sm border border-gray-100"
@@ -202,7 +216,7 @@ function DashboardPageContent() {
                             <Badge variant="status" color="gray">{task.status}</Badge>
                           </div>
                         </Card>
-                      </Link>
+                      </div>
                     ))}
                   </div>
                 </section>
@@ -248,5 +262,14 @@ function DashboardPageContent() {
           </div>
         </div>
       </div>
+
+      <TaskDetailModal
+        taskId={selectedTaskId}
+        isOpen={!!selectedTaskId}
+        onClose={() => setSelectedTaskId(null)}
+        onTaskUpdated={fetchData}
+        onTaskDeleted={(id) => setTasks((prev) => prev.filter((t) => t.id !== id))}
+      />
+    </>
   );
 }
