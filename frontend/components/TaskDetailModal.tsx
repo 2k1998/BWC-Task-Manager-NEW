@@ -29,17 +29,12 @@ interface TaskDetailModalProps {
   onTaskDeleted?: (taskId: string) => void;
 }
 
-type LookupUser = { id: string; first_name?: string; last_name?: string; full_name?: string };
 type LookupTeam = { id: string; name: string; head_user_id?: string };
+
+const UNKNOWN_USER = 'Unknown User';
 
 function normalizeStatus(status: string): string {
   return status ?? '';
-}
-
-function userDisplayName(user: LookupUser | undefined): string {
-  if (!user) return '';
-  if (user.full_name) return user.full_name;
-  return `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim();
 }
 
 export default function TaskDetailModal({
@@ -55,7 +50,6 @@ export default function TaskDetailModal({
   const canDeleteTasks = useHasPermission('tasks', 'delete');
 
   const [task, setTask] = useState<Task | null>(null);
-  const [users, setUsers] = useState<LookupUser[]>([]);
   const [teams, setTeams] = useState<LookupTeam[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -76,14 +70,12 @@ export default function TaskDetailModal({
     try {
       setLoading(true);
       setError('');
-      const [taskRes, usersRes, teamsRes] = await Promise.all([
+      const [taskRes, teamsRes] = await Promise.all([
         apiClient.get<Task>(`/tasks/${taskId}`),
-        apiClient.get('/users', { params: { limit: 100 } }),
         apiClient.get('/teams'),
       ]);
       const loaded = taskRes.data;
       setTask(loaded);
-      setUsers(usersRes.data.users || []);
       setTeams(teamsRes.data.teams || []);
       const urgency = (loaded as Task & { urgency_label?: string }).urgency_label || loaded.urgency || '';
       setDraft({
@@ -135,8 +127,10 @@ export default function TaskDetailModal({
   const isCompleted = task ? isTerminalStatus(normalizedStatus) : false;
 
   const ownerId = task?.owner_user_id;
-  const assignedUserId = task?.assigned_to_user_id ?? (task as Task & { assigned_user_id?: string })?.assigned_user_id;
-  const assignedTeamId = task?.assigned_to_team_id ?? (task as Task & { assigned_team_id?: string })?.assigned_team_id;
+  const assignedUserId =
+    task?.assigned_user_id ?? task?.assigned_to_user_id ?? null;
+  const assignedTeamId =
+    task?.assigned_team_id ?? task?.assigned_to_team_id ?? null;
 
   const canEditMetadata =
     !!task &&
@@ -163,22 +157,22 @@ export default function TaskDetailModal({
     (currentUser.id === ownerId || currentUser.user_type === 'Admin');
 
   const createdByName = useMemo(() => {
+    if (task?.created_by_name?.trim()) return task.created_by_name.trim();
     if (!ownerId) return '-';
-    const u = users.find((x) => String(x.id) === String(ownerId));
-    return userDisplayName(u) || String(ownerId);
-  }, [ownerId, users]);
+    return UNKNOWN_USER;
+  }, [task?.created_by_name, ownerId]);
 
   const assignedToName = useMemo(() => {
-    if (assignedUserId) {
-      const u = users.find((x) => String(x.id) === String(assignedUserId));
-      return userDisplayName(u) || String(assignedUserId);
-    }
-    if (assignedTeamId) {
-      const team = teams.find((t) => String(t.id) === String(assignedTeamId));
-      return team?.name ? `Team: ${team.name}` : String(assignedTeamId);
-    }
+    if (task?.assigned_user_name?.trim()) return task.assigned_user_name.trim();
+    if (task?.assigned_team_name?.trim()) return `Team: ${task.assigned_team_name.trim()}`;
+    if (assignedUserId || assignedTeamId) return UNKNOWN_USER;
     return '-';
-  }, [assignedUserId, assignedTeamId, users, teams]);
+  }, [
+    task?.assigned_user_name,
+    task?.assigned_team_name,
+    assignedUserId,
+    assignedTeamId,
+  ]);
 
   const validNextStatuses = getValidNextStatuses(normalizedStatus);
 

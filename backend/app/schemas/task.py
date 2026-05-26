@@ -127,7 +127,10 @@ class TaskResponse(BaseModel):
     deleted_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
-    
+    created_by_name: Optional[str] = None
+    assigned_user_name: Optional[str] = None
+    assigned_team_name: Optional[str] = None
+
     class Config:
         from_attributes = True
 

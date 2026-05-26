@@ -60,6 +60,69 @@ def _not_soft_deleted_filter():
     return Task.deleted_at.is_(None)
 
 
+def _user_display_name(user: Optional[User]) -> Optional[str]:
+    if not user:
+        return None
+    name = f"{user.first_name or ''} {user.last_name or ''}".strip()
+    return name or user.username or None
+
+
+def build_task_response(
+    task: Task,
+    db: Session,
+    user_map: Optional[Dict[Any, User]] = None,
+    team_map: Optional[Dict[Any, Any]] = None,
+) -> TaskResponse:
+    from app.models.team import Team
+
+    if user_map is None:
+        user_ids = [uid for uid in (task.owner_user_id, task.assigned_user_id) if uid]
+        users = db.query(User).filter(User.id.in_(user_ids)).all() if user_ids else []
+        user_map = {u.id: u for u in users}
+
+    if team_map is None:
+        team_map = {}
+        if task.assigned_team_id:
+            team = db.query(Team).filter(Team.id == task.assigned_team_id).first()
+            if team:
+                team_map[team.id] = team
+
+    owner = user_map.get(task.owner_user_id)
+    assignee = user_map.get(task.assigned_user_id) if task.assigned_user_id else None
+    team = team_map.get(task.assigned_team_id) if task.assigned_team_id else None
+    creator_name = _user_display_name(owner)
+
+    base = TaskResponse.model_validate(task)
+    return base.model_copy(
+        update={
+            "created_by_name": creator_name,
+            "assigned_user_name": _user_display_name(assignee),
+            "assigned_team_name": team.name if team else None,
+        }
+    )
+
+
+def build_task_responses(tasks: List[Task], db: Session) -> List[TaskResponse]:
+    from app.models.team import Team
+
+    user_ids = set()
+    team_ids = set()
+    for task in tasks:
+        if task.owner_user_id:
+            user_ids.add(task.owner_user_id)
+        if task.assigned_user_id:
+            user_ids.add(task.assigned_user_id)
+        if task.assigned_team_id:
+            team_ids.add(task.assigned_team_id)
+
+    users = db.query(User).filter(User.id.in_(user_ids)).all() if user_ids else []
+    teams = db.query(Team).filter(Team.id.in_(team_ids)).all() if team_ids else []
+    user_map = {u.id: u for u in users}
+    team_map = {t.id: t for t in teams}
+
+    return [build_task_response(task, db, user_map, team_map) for task in tasks]
+
+
 def _task_snapshot(task: Task) -> Dict[str, Any]:
     return {
         "id": str(task.id),
@@ -224,7 +287,8 @@ def create_task(
             )
         
         db.commit()
-        return task
+        db.refresh(task)
+        return build_task_response(task, db)
 
     except Exception as e:
         db.rollback()
@@ -272,7 +336,7 @@ def list_tasks(
     tasks = query.order_by(Task.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
     
     return TaskListResponse(
-        tasks=tasks,
+        tasks=build_task_responses(tasks, db),
         total=total,
         page=page,
         page_size=page_size
@@ -590,7 +654,7 @@ def get_task(
             detail="You do not have access to this task"
         )
     
-    return task
+    return build_task_response(task, db)
 
 
 @router.post("/{task_id}/view", status_code=status.HTTP_200_OK)
@@ -839,7 +903,8 @@ def update_task(
                 )
         
         db.commit()
-        return task
+        db.refresh(task)
+        return build_task_response(task, db)
 
     except Exception as e:
         db.rollback()
@@ -934,7 +999,8 @@ def update_task_status(
         )
         
         db.commit()
-        return task
+        db.refresh(task)
+        return build_task_response(task, db)
 
     except Exception as e:
         db.rollback()
@@ -1055,7 +1121,8 @@ def transfer_task(
         )
         
         db.commit()
-        return task
+        db.refresh(task)
+        return build_task_response(task, db)
 
     except Exception as e:
         db.rollback()

@@ -46,11 +46,17 @@ export interface Task {
   deadline: string;
   status: string;
   urgency: string;
-  assigned_to_user_id: string | null;
-  assigned_to_team_id: string | null;
+  assigned_to_user_id?: string | null;
+  assigned_to_team_id?: string | null;
+  assigned_user_id?: string | null;
+  assigned_team_id?: string | null;
   company_id: string | null;
   /** Present on task API responses; used for permissions and display. */
   owner_user_id?: string;
+  created_by_name?: string | null;
+  assigned_user_name?: string | null;
+  assigned_team_name?: string | null;
+  urgency_label?: string;
   created_at: string;
   updated_at: string;
 }
