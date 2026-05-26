@@ -92,10 +92,10 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
     <BranchFilterProvider>
         <div className="flex h-dvh min-h-screen max-w-full bg-brand-silver/15 overflow-x-hidden">
           <Sidebar />
-          <div className="flex-1 min-w-0 overflow-hidden flex flex-col transition-all duration-300">
+          <div className="flex-1 min-w-0 min-h-0 flex flex-col transition-all duration-300">
             
             {/* Desktop Header */}
-            <header className="bg-white border-b border-gray-200 h-16 min-w-0 flex items-center justify-between px-6 sm:px-8 shadow-sm z-20">
+            <header className="relative z-30 bg-white border-b border-gray-200 h-16 min-w-0 flex items-center justify-between px-6 sm:px-8 shadow-sm overflow-visible">
                  {/* Left side (Breadcrumbs or Page Title - placeholder for now, maybe mobile toggle) */}
                  <div className="flex min-w-0 overflow-hidden items-center gap-4 flex-1">
                      <button
@@ -122,7 +122,7 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
                  </div>
 
                  {/* Right side: Branch badge + Notifications + Profile */}
-                 <div className="flex min-w-0 overflow-hidden items-center gap-3 sm:gap-4">
+                 <div className="flex min-w-0 items-center gap-3 sm:gap-4 overflow-visible">
                      <div className="hidden sm:block">
                        <BranchFilterBadge className="mb-0" />
                      </div>

@@ -9,31 +9,40 @@ export default function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close on click outside or ESC key
+  // Close on click outside or ESC (only while open; defer listener to avoid toggle race)
   useEffect(() => {
-    function handleGlobalInput(event: MouseEvent | KeyboardEvent) {
-      if (event.type === 'keydown' && (event as KeyboardEvent).key === 'Escape') {
-        setIsOpen(false);
-        return;
-      }
-      if (event.type === 'mousedown' && dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+    if (!isOpen) return;
+
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     }
-    
-    document.addEventListener('mousedown', handleGlobalInput as EventListener);
-    document.addEventListener('keydown', handleGlobalInput as EventListener);
-    
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setIsOpen(false);
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      document.addEventListener('click', handleClickOutside);
+    }, 0);
+    document.addEventListener('keydown', handleEscape);
+
     return () => {
-      document.removeEventListener('mousedown', handleGlobalInput as EventListener);
-      document.removeEventListener('keydown', handleGlobalInput as EventListener);
+      window.clearTimeout(timeoutId);
+      document.removeEventListener('click', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
     };
-  }, []);
+  }, [isOpen]);
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative z-30" ref={dropdownRef}>
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsOpen((prev) => !prev);
+        }}
         className="relative p-2 text-gray-400 hover:text-gray-500 hover:bg-gray-100 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-gold"
         aria-label="Notifications"
         aria-haspopup="true"
@@ -59,7 +68,7 @@ export default function NotificationBell() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-lg shadow-lg ring-1 ring-black ring-opacity-5 z-50 origin-top-right transition-all duration-200 ease-out">
+        <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white rounded-lg shadow-lg ring-1 ring-black ring-opacity-5 z-[60] origin-top-right transition-all duration-200 ease-out">
             <NotificationDropdown onClose={() => setIsOpen(false)} />
         </div>
       )}
