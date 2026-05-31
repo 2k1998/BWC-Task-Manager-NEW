@@ -17,6 +17,7 @@ import PresenceSidebar from '@/components/presence/PresenceSidebar';
 
 import { Badge } from '@/components/ui'; // Assuming Badge exists
 import CommandPalette from '@/components/CommandPalette';
+import { ChatbotButton, ChatbotPanel } from '@/components/chatbot';
 import { useCommandSearch } from '@/hooks/useCommandSearch';
 
 export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
@@ -193,6 +194,9 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
              setQuery={cmdSearch.setQuery} 
              results={cmdSearch.results} 
           />
+
+          <ChatbotButton />
+          <ChatbotPanel />
         </div>
     </BranchFilterProvider>
   );

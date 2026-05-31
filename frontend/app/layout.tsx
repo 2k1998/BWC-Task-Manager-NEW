@@ -7,6 +7,7 @@ import { PermissionsProvider } from "@/context/PermissionsContext";
 import { LanguageProvider } from "@/context/LanguageContext";
 import { NotificationProvider } from "@/context/NotificationContext";
 import { PresenceProvider } from "@/context/PresenceContext";
+import { ChatbotProvider } from "@/context/ChatbotContext";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -29,7 +30,9 @@ export default function RootLayout({
                 <LanguageProvider>
                   <PresenceProvider>
                     <NotificationProvider>
-                      {children}
+                      <ChatbotProvider>
+                        {children}
+                      </ChatbotProvider>
                     </NotificationProvider>
                   </PresenceProvider>
                 </LanguageProvider>

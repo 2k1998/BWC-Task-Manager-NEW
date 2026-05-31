@@ -1,6 +1,14 @@
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 from app.api.auth import router as auth_router
 from app.api.admin_users import router as admin_users_router
@@ -21,6 +29,7 @@ from app.api.cars import router as cars_router
 from app.api.profile import router as profile_router
 from app.api.presence import router as presence_router
 from app.api.chat import router as chat_router
+from app.api.chatbot import router as chatbot_router
 from app.api.approvals import router as approvals_router
 from app.api.analytics import router as analytics_router
 from app.api.users import router as users_router
@@ -82,6 +91,7 @@ app.include_router(cars_router)
 app.include_router(profile_router)
 app.include_router(presence_router)
 app.include_router(chat_router)
+app.include_router(chatbot_router)
 app.include_router(approvals_router)
 app.include_router(analytics_router)
 app.include_router(users_router)

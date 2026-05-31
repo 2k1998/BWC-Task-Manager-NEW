@@ -29,6 +29,12 @@ from app.models.chat_thread import ChatThread
 from app.models.chat_thread_member import ChatThreadMember
 from app.models.chat_message import ChatMessage
 from app.models.approval_request import ApprovalRequest
+from app.models.chatbot import (
+    ChatbotConversation,
+    ChatbotKnowledge,
+    ChatbotMessage,
+    UserOnboardingProgress,
+)
 
 __all__ = [
     "User",
@@ -62,5 +68,9 @@ __all__ = [
     "ChatThreadMember",
     "ChatMessage",
     "ApprovalRequest",
+    "ChatbotConversation",
+    "ChatbotMessage",
+    "ChatbotKnowledge",
+    "UserOnboardingProgress",
 ]
 

@@ -48,16 +48,17 @@ VALID_TRANSITIONS = {
 router = APIRouter(prefix="/tasks", tags=["Tasks"])
 
 
-from app.utils.visibility import can_user_view_task
-from app.utils.hierarchy import get_descendant_ids
+from app.utils.visibility import (
+    can_user_view_task,
+    task_not_soft_deleted_filter,
+    build_task_visibility_filter,
+)
 from app.utils.branch_filter import resolve_admin_branch_ids
 
 
 def _not_soft_deleted_filter():
     """Exclude soft-deleted tasks across legacy/new deletion columns."""
-    if hasattr(Task, "is_deleted"):
-        return or_(Task.is_deleted == False, Task.is_deleted == None)
-    return Task.deleted_at.is_(None)
+    return task_not_soft_deleted_filter()
 
 
 def _user_display_name(user: Optional[User]) -> Optional[str]:
@@ -149,34 +150,7 @@ def build_visibility_filter(
     branch_ids: list | None = None,
 ):
     """Build SQLAlchemy filter for task visibility."""
-    if current_user.user_type == "Admin":
-        if branch_ids is None:
-            return True
-        return and_(
-            _not_soft_deleted_filter(),
-            or_(
-                Task.owner_user_id.in_(branch_ids),
-                Task.assigned_user_id.in_(branch_ids),
-            ),
-        )
-
-    descendant_ids = get_descendant_ids(current_user.id, db)
-    user_teams = db.query(TeamMember.team_id).filter(TeamMember.user_id == current_user.id).all()
-    team_ids = [t[0] for t in user_teams]
-
-    filters = [
-        Task.owner_user_id == current_user.id,
-        Task.assigned_user_id == current_user.id,
-    ]
-
-    if team_ids:
-        filters.append(Task.assigned_team_id.in_(team_ids))
-
-    if descendant_ids:
-        filters.append(Task.assigned_user_id.in_(descendant_ids))
-        filters.append(Task.owner_user_id.in_(descendant_ids))
-
-    return and_(_not_soft_deleted_filter(), or_(*filters))
+    return build_task_visibility_filter(current_user, db, branch_ids=branch_ids)
 
 
 def _can_access_task_comments(task: Task, current_user: User) -> bool:

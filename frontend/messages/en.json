@@ -238,5 +238,25 @@
   "Companies": {
     "newCompany": "New Company",
     "noCompaniesFound": "No companies found"
+  },
+  "Chatbot": {
+    "title": "BWC Assistant",
+    "tagline": "Ask me anything about the BWC Task Manager",
+    "buttonLabel": "Open assistant",
+    "closeLabel": "Close assistant",
+    "newConversation": "New conversation",
+    "conversations": "Conversations",
+    "noConversations": "No previous conversations",
+    "emptyState": "How can I help you today?",
+    "emptyHints": "Try asking how to create a task, what urgency labels mean, or how the role hierarchy works.",
+    "inputPlaceholder": "Type your message…",
+    "send": "Send",
+    "sending": "Sending…",
+    "thinking": "Thinking…",
+    "errorSend": "Couldn't send your message. Please try again.",
+    "errorLoad": "Couldn't load the conversation.",
+    "errorCreate": "Couldn't start a new conversation.",
+    "you": "You",
+    "assistant": "Assistant"
   }
 }
