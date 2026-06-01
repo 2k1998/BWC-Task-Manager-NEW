@@ -10,10 +10,12 @@ interface UserHierarchyTreeProps {
   nodes: UserTreeNode[];
   activeById: Record<string, boolean>;
   showPermissions: boolean;
+  showResetPassword: boolean;
   showDeactivate: boolean;
   actioningUserId: string | null;
   onEdit: (node: UserTreeNode) => void;
   onPermissions: (node: UserTreeNode) => void;
+  onResetPassword: (node: UserTreeNode) => void;
   onToggleActive: (node: UserTreeNode, activate: boolean) => void;
 }
 
@@ -24,10 +26,12 @@ function TreeNodeRow({
   onToggleExpand,
   activeById,
   showPermissions,
+  showResetPassword,
   showDeactivate,
   actioningUserId,
   onEdit,
   onPermissions,
+  onResetPassword,
   onToggleActive,
   t,
   roleLabel,
@@ -38,10 +42,12 @@ function TreeNodeRow({
   onToggleExpand: (id: string) => void;
   activeById: Record<string, boolean>;
   showPermissions: boolean;
+  showResetPassword: boolean;
   showDeactivate: boolean;
   actioningUserId: string | null;
   onEdit: (node: UserTreeNode) => void;
   onPermissions: (node: UserTreeNode) => void;
+  onResetPassword: (node: UserTreeNode) => void;
   onToggleActive: (node: UserTreeNode, activate: boolean) => void;
   t: ReturnType<typeof useTranslations<'Admin'>>;
   roleLabel: (role: string) => string;
@@ -98,6 +104,16 @@ function TreeNodeRow({
               {t('permissions')}
             </button>
           )}
+          {showResetPassword && (
+            <button
+              type="button"
+              onClick={() => onResetPassword(node)}
+              disabled={actioningUserId === node.id}
+              className="text-gray-900 border border-[#D1AE62]/50 bg-[#D1AE62]/15 px-3 py-1 rounded-lg hover:bg-[#D1AE62]/25 text-sm disabled:opacity-50"
+            >
+              {t('resetPassword')}
+            </button>
+          )}
           {showDeactivate && (
             <button
               type="button"
@@ -120,10 +136,12 @@ function TreeNodeRow({
             onToggleExpand={onToggleExpand}
             activeById={activeById}
             showPermissions={showPermissions}
+            showResetPassword={showResetPassword}
             showDeactivate={showDeactivate}
             actioningUserId={actioningUserId}
             onEdit={onEdit}
             onPermissions={onPermissions}
+            onResetPassword={onResetPassword}
             onToggleActive={onToggleActive}
             t={t}
             roleLabel={roleLabel}
@@ -137,10 +155,12 @@ export default function UserHierarchyTree({
   nodes,
   activeById,
   showPermissions,
+  showResetPassword,
   showDeactivate,
   actioningUserId,
   onEdit,
   onPermissions,
+  onResetPassword,
   onToggleActive,
 }: UserHierarchyTreeProps) {
   const t = useTranslations('Admin');
@@ -176,10 +196,12 @@ export default function UserHierarchyTree({
           onToggleExpand={toggleExpand}
           activeById={activeById}
           showPermissions={showPermissions}
+          showResetPassword={showResetPassword}
           showDeactivate={showDeactivate}
           actioningUserId={actioningUserId}
           onEdit={onEdit}
           onPermissions={onPermissions}
+          onResetPassword={onResetPassword}
           onToggleActive={onToggleActive}
           t={t}
           roleLabel={roleLabel}

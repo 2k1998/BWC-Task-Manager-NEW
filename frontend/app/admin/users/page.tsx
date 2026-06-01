@@ -143,6 +143,23 @@ export default function AdminUsersPage() {
     setPermissionsModalOpen(true);
   };
 
+  const handleResetPassword = async (node: UserTreeNode) => {
+    if (!window.confirm(tAdmin('resetPasswordConfirm', { name: node.full_name }))) return;
+    try {
+      setActioningUserId(node.id);
+      const res = await apiClient.post<{ generated_password: string }>(
+        `/admin/users/${node.id}/reset-password`
+      );
+      setGeneratedPassword(res.data.generated_password);
+      setIsPasswordDisplayOpen(true);
+      toast.success(tAdmin('resetPasswordSuccess'));
+    } catch {
+      toast.error(tAdmin('resetPasswordError'));
+    } finally {
+      setActioningUserId(null);
+    }
+  };
+
   const closePasswordModal = () => {
     setGeneratedPassword('');
     setIsPasswordDisplayOpen(false);
@@ -216,10 +233,12 @@ export default function AdminUsersPage() {
                   nodes={tree}
                   activeById={activeById}
                   showPermissions={isAdmin}
+                  showResetPassword={isAdmin}
                   showDeactivate
                   actioningUserId={actioningUserId}
                   onEdit={openEdit}
                   onPermissions={openPermissions}
+                  onResetPassword={handleResetPassword}
                   onToggleActive={handleUserActivation}
                 />
               )}
