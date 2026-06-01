@@ -3,6 +3,16 @@
 ## Project Purpose
 BWC Task Manager is an internal operations platform for the "Because We Can" organisation. It lets staff manage tasks, projects, contacts, companies, payments, cars, documents, and team chat — all scoped to a strict 5-level user hierarchy. Each user can only see and act on resources within their own branch of the tree. The app has a FastAPI backend, a Next.js 16 static-export frontend, and a PostgreSQL database, all hosted on Render.
 
+## Permanent Product Rules
+
+These rules are non-negotiable product decisions. Do not re-implement, work around, or revert them in any future session.
+
+- **Passwords are admin-controlled only.** Users cannot change their own password under any circumstances. There is no `/change-password` endpoint, no profile-page password section, no "forgot password" flow, no force-change-on-next-login flow. The ONLY way a password is set or changed is:
+  1. Admin creates a new user (generates initial password, shown once in the password-display modal)
+  2. Admin clicks "Reset Password" on the admin users page (generates new password, shown once)
+
+  The temporary password is communicated to the user out-of-band by the admin. The user uses it as-is going forward. Do NOT add `ChangePasswordRequest` schemas, do NOT add `/me/password` endpoints, do NOT add "change password" UI sections, do NOT re-introduce `force_password_change` columns.
+
 ## Repo Layout
 ```
 /
@@ -292,7 +302,7 @@ git reset --hard <commit-hash> && git push origin main --force
 - **Local admin**: `kabaniskostas1998@gmail.com` / `Administrator`
 - **Local system admin** (seeded): `admin@bwc.com` / password unknown locally — use kabaniskostas1998@gmail.com instead
 - **Test agent** (provisioned for isolation testing): `phase8_test@example.com` / `TestAgent123`
-- **Production admin** (Render DB): `kabaniskostas1998@gmail.com` / `Admin123`
+- **Production admin** (Render DB): `kabaniskostas1998@gmail.com` / `Administrator`
 - Top-level user (root of production hierarchy): `kyriakosmadakis@gmail.com`
 - Login field name: `username_or_email` (NOT `email`) — `POST /auth/login`
 
