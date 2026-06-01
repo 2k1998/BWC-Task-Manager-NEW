@@ -17,8 +17,7 @@ class User(BaseModel):
     hashed_password = Column(String, nullable=False)
     user_type = Column(String, nullable=False)  # VARCHAR, not enum - validated at application level
     is_active = Column(Boolean, default=True, nullable=False)
-    force_password_change = Column(Boolean, default=True, nullable=False)
-    
+
     # Legacy hierarchy column (unused by app logic; parent_id is canonical)
     manager_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=True)
 

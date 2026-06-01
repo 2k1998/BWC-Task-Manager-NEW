@@ -50,7 +50,6 @@ class UserResponse(BaseModel):
     last_name: str
     user_type: str
     is_active: bool
-    force_password_change: bool
     parent_id: Optional[UUID]
     created_at: datetime
     updated_at: datetime

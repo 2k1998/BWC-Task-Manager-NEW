@@ -179,7 +179,6 @@ def create_user(
         hashed_password=hash_password(temp_password),
         user_type=user_data.user_type,
         parent_id=user_data.parent_id,
-        force_password_change=True,
         is_active=True,
     )
 
@@ -439,7 +438,6 @@ def reset_password(
     
     # Update password
     user.hashed_password = hash_password(new_password)
-    user.force_password_change = True
     db.commit()
     
     # Create audit log

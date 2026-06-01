@@ -1,6 +1,6 @@
 # Import all schemas
 from app.schemas.user import UserCreate, UserUpdate, UserResponse, UserListResponse, ALLOWED_USER_TYPES
-from app.schemas.auth import LoginRequest, TokenResponse, RefreshRequest, ChangePasswordRequest
+from app.schemas.auth import LoginRequest, TokenResponse, RefreshRequest
 from app.schemas.permission import PagePermissionItem, SetPermissionsRequest, PagePermissionResponse, ALLOWED_ACCESS_LEVELS
 from app.schemas.payment import PaymentCreate, PaymentUpdate, PaymentResponse, PaymentListResponse, PaymentSummaryResponse, ALLOWED_PAYMENT_TYPES
 from app.schemas.analytics import (
@@ -35,7 +35,6 @@ __all__ = [
     "LoginRequest",
     "TokenResponse",
     "RefreshRequest",
-    "ChangePasswordRequest",
     "PagePermissionItem",
     "SetPermissionsRequest",
     "PagePermissionResponse",

@@ -150,7 +150,7 @@
     "activityLogs": "Activity Logs",
     "newUser": "New User",
     "resetPassword": "Reset Password",
-    "resetPasswordConfirm": "Reset password for {name}? They will be required to change it on next login.",
+    "resetPasswordConfirm": "Reset password for {name}? A new temporary password will be generated.",
     "resetPasswordSuccess": "Password reset. Share this temporary password with the user — it will only be shown once.",
     "resetPasswordError": "Failed to reset password.",
     "deactivate": "Deactivate",
