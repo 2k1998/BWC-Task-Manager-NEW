@@ -20,7 +20,7 @@ from app.models.company import Company
 from app.models.department import Department
 from app.models.task import Task
 from app.models.user import User
-from app.utils.hierarchy import get_branch_root
+from app.utils.hierarchy import get_organization_admin
 
 BASE = "http://127.0.0.1:8000"
 STATE_FILE = Path(__file__).parent / ".assignability_test_state.json"
@@ -87,10 +87,11 @@ def main() -> int:
     db = SessionLocal()
     try:
         agent_user = db.query(User).filter(User.email == AGENT_EMAIL).first()
-        agent_root = get_branch_root(agent_user, db)
+        agent_org_admin = get_organization_admin(agent_user, db)
         cross_user = None
         for u in db.query(User).filter(User.is_active == True, User.id != agent_user.id).all():
-            if get_branch_root(u, db).id != agent_root.id:
+            other_org_admin = get_organization_admin(u, db)
+            if other_org_admin and agent_org_admin and other_org_admin.id != agent_org_admin.id:
                 cross_user = u
                 break
         if cross_user:
@@ -136,10 +137,11 @@ def main() -> int:
     db = SessionLocal()
     try:
         agent_user = db.query(User).filter(User.email == AGENT_EMAIL).first()
-        agent_root = get_branch_root(agent_user, db)
+        agent_org_admin = get_organization_admin(agent_user, db)
         cross_user = None
         for u in db.query(User).filter(User.is_active == True, User.id != agent_user.id).all():
-            if get_branch_root(u, db).id != agent_root.id:
+            other_org_admin = get_organization_admin(u, db)
+            if other_org_admin and agent_org_admin and other_org_admin.id != agent_org_admin.id:
                 cross_user = u
                 break
         if cross_user:

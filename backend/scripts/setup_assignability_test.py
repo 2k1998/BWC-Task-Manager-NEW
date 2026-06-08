@@ -17,7 +17,7 @@ from app.core.database import SessionLocal
 from app.models.page import Page
 from app.models.permission import UserPagePermission, UserPermission
 from app.models.user import User
-from app.utils.hierarchy import get_assignable_user_ids, get_branch_root, get_descendant_ids
+from app.utils.hierarchy import get_assignable_user_ids, get_descendant_ids, get_organization_admin
 
 TEST_AGENT_EMAIL = "phase8_test@example.com"
 STATE_FILE = Path(__file__).parent / ".assignability_test_state.json"
@@ -33,8 +33,7 @@ def _subtree_size(user_id, db) -> int:
 
 
 def _assignable_count(agent: User, db) -> int:
-    ids = get_assignable_user_ids(agent, db)
-    return len(ids) if ids is not None else 0
+    return len(get_assignable_user_ids(agent, db))
 
 
 def _pick_candidate(agent: User, db) -> User | None:
@@ -147,16 +146,17 @@ def setup() -> int:
         db.commit()
         db.refresh(agent)
 
-        branch_root = get_branch_root(agent, db)
-        assignable = get_assignable_user_ids(agent, db) or []
-        state["branch_root_email"] = branch_root.email
-        state["branch_root_role"] = branch_root.user_type
+        org_admin = get_organization_admin(agent, db)
+        assignable = get_assignable_user_ids(agent, db)
+        state["org_admin_email"] = org_admin.email if org_admin else None
+        state["org_admin_role"] = org_admin.user_type if org_admin else None
         state["assignable_count"] = len(assignable)
 
         STATE_FILE.write_text(json.dumps(state, indent=2), encoding="utf-8")
         print(json.dumps(state, indent=2))
         print(
-            f"\nBranch root: {branch_root.email} ({branch_root.user_type}), "
+            f"\nOrganization admin: {org_admin.email if org_admin else 'None'} "
+            f"({org_admin.user_type if org_admin else 'N/A'}), "
             f"assignable count: {len(assignable)}"
         )
         if len(assignable) <= 1:

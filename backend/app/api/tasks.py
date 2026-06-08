@@ -37,8 +37,6 @@ def _validate_assigned_user_assignable(
     db: Session,
 ) -> None:
     assignable_ids = get_assignable_user_ids(actor, db)
-    if assignable_ids is None:
-        return
     if assigned_user_id not in assignable_ids:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

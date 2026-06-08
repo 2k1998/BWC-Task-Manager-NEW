@@ -159,32 +159,34 @@ def validate_can_manage_target(actor: User, target_id: UUID, db: Session) -> Non
         )
 
 
-def get_branch_root(user: User, db: Session) -> User:
+def get_organization_admin(user: User, db: Session) -> User | None:
     """
-    Returns the topmost non-Admin ancestor of `user`.
-    For non-Admin: walks up parent_id until parent is None or parent's user_type == "Admin".
-    Returns the last non-Admin encountered.
-    """
-    current = user
-    for _ in range(10):
-        if current.parent_id is None:
-            return current
-        parent = db.query(User).filter(User.id == current.parent_id).first()
-        if not parent:
-            return current
-        if parent.user_type == "Admin":
-            return current
-        current = parent
-    return current
-
-
-def get_assignable_user_ids(user: User, db: Session) -> list[UUID] | None:
-    """
-    Returns user IDs that `user` can ASSIGN a task to.
-    Returns None for Admin (assign to anyone).
-    For non-Admin: branch_root.id + get_descendant_ids(branch_root.id, db)
+    Returns the Admin ancestor of `user`.
+    Admin users return themselves.
+    Non-Admin: walks parent_id chain up to depth 20 to find Admin.
+    Returns None if orphan (no Admin ancestor) or max depth exceeded.
     """
     if user.user_type == "Admin":
-        return None
-    branch_root = get_branch_root(user, db)
-    return [branch_root.id, *get_descendant_ids(branch_root.id, db)]
+        return user
+    current = user
+    for _ in range(20):
+        if current.parent_id is None:
+            return None
+        parent = db.query(User).filter(User.id == current.parent_id).first()
+        if not parent:
+            return None
+        if parent.user_type == "Admin":
+            return parent
+        current = parent
+    return None
+
+
+def get_assignable_user_ids(user: User, db: Session) -> list[UUID]:
+    """
+    Returns user IDs that `user` can ASSIGN a task to.
+    Everyone sharing the same Admin ancestor (Admin included).
+    """
+    org_admin = get_organization_admin(user, db)
+    if org_admin is None:
+        return [user.id]
+    return [org_admin.id, *get_descendant_ids(org_admin.id, db)]

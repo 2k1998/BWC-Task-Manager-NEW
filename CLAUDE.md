@@ -124,16 +124,17 @@ Five roles in strict order: **Admin > Pillar > Manager > Head > Agent**
 Admin has no parent. Pillar's `parent_id` must point to an Admin.
 
 ### Assignability vs Visibility (do not confuse)
-- **Visibility** (what data a user sees): unchanged — non-Admin sees only their own descendants' data. Helper: `get_visible_user_ids`.
-- **Assignability** (who a user can assign tasks to): expanded — non-Admin can assign to anyone in their "branch root" subtree (ancestors + descendants + siblings rooted at the topmost non-Admin ancestor). Helper: `get_assignable_user_ids`.
-- An Agent can ASSIGN a task to their Manager but cannot SEE their Manager's other tasks. These are two distinct filters; never collapse them.
-- Endpoint: `GET /users/assignable` returns the list for the current user.
+- **Visibility** (what data a user sees): non-Admin sees only their own descendants' data. Helper: `get_visible_user_ids`. UNCHANGED by this expansion.
+- **Assignability** (who a user can assign tasks to): everyone sharing the same Admin ancestor. The Admin is included in everyone's pickers. Pillar / Manager / Head structure does NOT restrict assignment — those tiers exist for visibility/reporting only. Helper: `get_assignable_user_ids`, which uses `get_organization_admin` to find the Admin at the root of the chain and returns `[admin.id] + descendants(admin)`.
+- In a single-Admin org: every non-Admin can assign to every other user (including the Admin). In a multi-Admin org: each Admin's tree is an isolated assignment scope.
+- An Agent can ASSIGN a task to their Pillar but cannot SEE that Pillar's other tasks. Two distinct filters — never collapse them.
+- Endpoint: `GET /users/assignable` returns the list for the current user. The Admin always appears in non-Admin responses.
 
 ### Hierarchy utility: `backend/app/utils/hierarchy.py`
 - `get_descendant_ids(user_id, db)` — BFS over `parent_id`; returns `list[UUID]`
 - `get_visible_user_ids(actor, db)` — returns `None` (Admin sees all) or `[self.id, ...descendants]`
-- `get_branch_root(user, db)` — topmost non-Admin ancestor (walk `parent_id`, max depth 10)
-- `get_assignable_user_ids(user, db)` — returns `None` (Admin) or `[branch_root.id, ...descendants of branch_root]`
+- `get_organization_admin(user, db)` — Admin returns self; non-Admin walks `parent_id` up to depth 20 to find Admin; returns `None` if orphan
+- `get_assignable_user_ids(user, db)` — `[org_admin.id, ...descendants of org_admin]`; orphan users get `[self.id]` only
 - `validate_creatable_role(actor_type, new_type)` — raises 400 if not allowed
 - `validate_parent_for_role(child_role, parent_id, db)` — raises 400/403 on bad parent
 - `validate_parent_in_actor_subtree(actor, parent_id, db)` — non-Admin: parent must be in actor's branch

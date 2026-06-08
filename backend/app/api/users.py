@@ -46,9 +46,10 @@ def list_assignable_users(
 ):
     """Users the current actor may assign tasks to."""
     assignable_ids = get_assignable_user_ids(current_user, db)
-    users_q = db.query(User).filter(User.is_active.is_(True))
-    if assignable_ids is not None:
-        users_q = users_q.filter(User.id.in_(assignable_ids))
+    users_q = (
+        db.query(User)
+        .filter(User.is_active.is_(True), User.id.in_(assignable_ids))
+    )
     users = _sort_users_for_assignable(users_q.all())
     return [_user_brief(user) for user in users]
 
