@@ -66,6 +66,7 @@ def _create_document_from_bytes(
         mime_type=mime_type,
         storage_path=str(storage_path),
         uploaded_by_user_id=current_user.id,
+        source="call_note",
     )
     db.add(doc)
     db.flush()  # obtain doc.id

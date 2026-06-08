@@ -16,3 +16,5 @@ class Document(BaseModel):
     mime_type = Column(Text, nullable=False)
     storage_path = Column(Text, nullable=False)
     uploaded_by_user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='RESTRICT'), nullable=False)
+    # Origin context: document (Documents module), task, chat, call_note
+    source = Column(String(32), nullable=False, default="document", server_default="document")

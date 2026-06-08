@@ -367,6 +367,7 @@ async def upload_task_document(
         mime_type=file.content_type or "application/octet-stream",
         storage_path=str(storage_path),
         uploaded_by_user_id=current_user.id,
+        source="task",
     )
     db.add(document)
     db.flush()

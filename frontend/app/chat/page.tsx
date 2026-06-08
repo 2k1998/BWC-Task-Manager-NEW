@@ -348,7 +348,7 @@ export default function ChatPage() {
       if (attachment) {
         const fd = new FormData();
         fd.append('file', attachment);
-        const uploadRes = await apiClient.post('/documents', fd, {
+        const uploadRes = await apiClient.post('/documents?source=chat', fd, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
         fileId =

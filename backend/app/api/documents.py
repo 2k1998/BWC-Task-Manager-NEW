@@ -18,11 +18,13 @@ from app.models.daily_call import DailyCall
 from app.schemas.document import DocumentResponse, DocumentListResponse
 from app.utils.activity_logger import log_activity
 from app.utils.branch_filter import resolve_admin_branch_ids
+from app.utils.document_access import user_can_download_document
 from datetime import datetime, timezone
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
 
 MAX_FILE_SIZE = 100 * 1024 * 1024
+ALLOWED_UPLOAD_SOURCES = frozenset({"document", "chat"})
 
 
 def ensure_upload_dir():
@@ -35,13 +37,21 @@ def ensure_upload_dir():
 @router.post("", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
 async def upload_document(
     file: UploadFile = File(...),
+    source: str = Query("document", description="Upload context: document (Documents module) or chat"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
     Upload a document.
-    Any authenticated user can upload.
+    Documents module uploads use source=document; chat attachments use source=chat.
     """
+    normalized_source = (source or "document").strip().lower()
+    if normalized_source not in ALLOWED_UPLOAD_SOURCES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid source. Allowed values: {', '.join(sorted(ALLOWED_UPLOAD_SOURCES))}",
+        )
+
     file_content = await file.read()
     file_size = len(file_content)
     
@@ -66,7 +76,8 @@ async def upload_document(
         file_size_bytes=file_size,
         mime_type=file.content_type or "application/octet-stream",
         storage_path=str(storage_path),
-        uploaded_by_user_id=current_user.id # Strict owner derivation
+        uploaded_by_user_id=current_user.id, # Strict owner derivation
+        source=normalized_source,
     )
     
     db.add(document)
@@ -101,14 +112,14 @@ def list_documents(
     current_user: User = Depends(get_current_user)
 ):
     """
-    List all documents.
-    All users can see all documents (public visibility).
+    List documents uploaded via the Documents module only.
+    Task attachments, chat files, and call notes are excluded.
     """
     branch_ids = resolve_admin_branch_ids(branch_user_id, current_user, db)
     if branch_ids is not None and not branch_ids:
         return DocumentListResponse(documents=[], total=0, page=page, page_size=page_size)
 
-    query = db.query(Document)
+    query = db.query(Document).filter(Document.source == "document")
     if branch_ids is not None:
         query = query.filter(Document.uploaded_by_user_id.in_(branch_ids))
     
@@ -131,7 +142,9 @@ def download_document(
 ):
     """
     Download a document.
-    All users can download all documents.
+    Task attachments: task owner or assigned user (or Admin).
+    Documents module uploads: uploader or Admin.
+    Call notes: daily-call owner while not expired.
     """
     document = db.query(Document).filter(Document.id == document_id).first()
     
@@ -158,7 +171,9 @@ def download_document(
         is not None
     )
 
-    if not has_valid_call_note_link:
+    if has_valid_call_note_link:
+        pass  # allowed — fall through to file streaming
+    else:
         has_any_call_note_link_for_user = (
             db.query(CallNotesFile.id)
             .join(DailyCall, DailyCall.id == CallNotesFile.daily_call_id)
@@ -173,10 +188,15 @@ def download_document(
         if has_any_call_note_link_for_user:
             raise HTTPException(status_code=status.HTTP_410_GONE, detail="Call notes file expired")
 
-        # The document is a call note for someone else.
         has_any_call_note_link_any_user = db.query(CallNotesFile.id).filter(CallNotesFile.file_id == document.id).first()
         if has_any_call_note_link_any_user:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have access to this file")
+
+        if not user_can_download_document(db, document, current_user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to download this file.",
+            )
     
     if not os.path.exists(document.storage_path):
         raise HTTPException(
