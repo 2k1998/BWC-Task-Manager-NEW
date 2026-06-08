@@ -56,6 +56,12 @@ export default function CreateTaskModal({ onClose, onSuccess }: CreateTaskModalP
 
   const [assignType, setAssignType] = useState<'user' | 'team'>('user');
 
+  const cannotAssign =
+    (assignType === 'user' && users.length === 0) ||
+    (assignType === 'team' && teams.length === 0);
+  const missingRequiredDropdowns = companies.length === 0 || departments.length === 0;
+  const submitDisabled = loading || cannotAssign || missingRequiredDropdowns;
+
   const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
   const [attachmentStatuses, setAttachmentStatuses] = useState<Array<'idle' | 'uploading' | 'done' | 'error'>>([]);
   const [attachmentErrors, setAttachmentErrors] = useState<string[]>([]);
@@ -66,32 +72,50 @@ export default function CreateTaskModal({ onClose, onSuccess }: CreateTaskModalP
   }, []);
 
   const fetchDependencies = async () => {
-    try {
-      const [companiesRes, departmentsRes, assignableUsers, teamsRes] = await Promise.all([
-        apiClient.get('/companies?page=1&page_size=100'),
-        apiClient.get('/departments'),
-        getAssignableUsers(),
-        apiClient.get('/teams'),
-      ]);
+    const results = await Promise.allSettled([
+      apiClient.get('/companies?page=1&page_size=100'),
+      apiClient.get('/departments'),
+      getAssignableUsers(),
+      apiClient.get('/teams'),
+    ]);
 
-      setCompanies(companiesRes.data.companies || []);
-      const departmentsData = Array.isArray(departmentsRes.data)
-        ? departmentsRes.data
-        : (departmentsRes.data.departments || []);
-      setDepartments(departmentsData);
-      setUsers(assignableUsers);
-      setTeams(teamsRes.data.teams || []);
+    const [companiesResult, departmentsResult, usersResult, teamsResult] = results;
 
-      // Auto-select first department if available
-      if (departmentsData.length > 0) {
-        setFormData(prev => ({ ...prev, department: departmentsData[0].name }));
-      }
-
-    } catch (err) {
-      console.error('Failed to fetch dependencies:', err);
-    } finally {
-      setInitialLoading(false);
+    if (companiesResult.status === 'fulfilled') {
+      setCompanies(companiesResult.value.data.companies || []);
+    } else {
+      console.warn('Failed to fetch companies:', companiesResult.reason);
+      setCompanies([]);
     }
+
+    if (departmentsResult.status === 'fulfilled') {
+      const departmentsData = Array.isArray(departmentsResult.value.data)
+        ? departmentsResult.value.data
+        : (departmentsResult.value.data.departments || []);
+      setDepartments(departmentsData);
+      if (departmentsData.length > 0) {
+        setFormData((prev) => ({ ...prev, department: departmentsData[0].name }));
+      }
+    } else {
+      console.warn('Failed to fetch departments:', departmentsResult.reason);
+      setDepartments([]);
+    }
+
+    if (usersResult.status === 'fulfilled') {
+      setUsers(usersResult.value);
+    } else {
+      console.warn('Failed to fetch assignable users:', usersResult.reason);
+      setUsers([]);
+    }
+
+    if (teamsResult.status === 'fulfilled') {
+      setTeams(teamsResult.value.data.teams || []);
+    } else {
+      console.warn('Failed to fetch teams:', teamsResult.reason);
+      setTeams([]);
+    }
+
+    setInitialLoading(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -224,12 +248,6 @@ export default function CreateTaskModal({ onClose, onSuccess }: CreateTaskModalP
         {/* Form Body */}
         <div className="flex-1 p-4 sm:p-6 overflow-y-auto custom-scrollbar space-y-6 pb-28 sm:pb-6">
             
-            {companies.length === 0 && (
-                <div className="bg-red-50 text-red-700 p-3 rounded-md text-sm">
-                    Warning: No companies found. Task creation may fail. Contact admin.
-                </div>
-            )}
-
             {/* Title */}
             <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Task Title *</label>
@@ -263,10 +281,16 @@ export default function CreateTaskModal({ onClose, onSuccess }: CreateTaskModalP
                         value={formData.company_id}
                         onChange={e => setFormData({...formData, company_id: e.target.value})}
                      >
-                        <option value="">No Company</option>
-                        {companies.map(c => (
-                            <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
+                        {companies.length === 0 ? (
+                          <option value="" disabled>No companies available</option>
+                        ) : (
+                          <>
+                            <option value="">No Company</option>
+                            {companies.map(c => (
+                              <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                          </>
+                        )}
                      </select>
                 </div>
 
@@ -376,14 +400,21 @@ export default function CreateTaskModal({ onClose, onSuccess }: CreateTaskModalP
                          <label className="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wide">Select User</label>
                         <select
                             required
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-gold focus:border-transparent outline-none transition-all bg-white"
+                            disabled={users.length === 0}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-gold focus:border-transparent outline-none transition-all bg-white disabled:bg-gray-50"
                             value={formData.assigned_user_id}
                             onChange={e => setFormData({...formData, assigned_user_id: e.target.value})}
                         >
-                            <option value="">Select User...</option>
-                            {users.map(u => (
-                                <option key={u.id} value={u.id}>{u.full_name} ({u.email})</option>
-                            ))}
+                            {users.length === 0 ? (
+                              <option value="" disabled>No one available to assign — contact an admin</option>
+                            ) : (
+                              <>
+                                <option value="">Select User...</option>
+                                {users.map(u => (
+                                  <option key={u.id} value={u.id}>{u.full_name} ({u.email})</option>
+                                ))}
+                              </>
+                            )}
                         </select>
                     </div>
                 )}
@@ -460,7 +491,7 @@ export default function CreateTaskModal({ onClose, onSuccess }: CreateTaskModalP
             <Button variant="outline" onClick={onClose} type="button" disabled={loading} className="w-full sm:w-auto">
                 Cancel
             </Button>
-            <Button variant="primary" onClick={handleSubmit} disabled={loading} type="submit" className="w-full sm:w-auto">
+            <Button variant="primary" onClick={handleSubmit} disabled={submitDisabled} type="submit" className="w-full sm:w-auto">
                 {loading
                   ? uploadAttachmentsPhase
                     ? 'Uploading attachments...'

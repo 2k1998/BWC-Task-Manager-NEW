@@ -62,31 +62,58 @@ export default function EditTaskModal({ task, onClose, onSuccess }: EditTaskModa
   }, []);
 
   const fetchDependencies = async () => {
-    try {
-      const [companiesRes, departmentsRes, assignableUsers, teamsRes, attachmentsRes] = await Promise.all([
-        apiClient.get('/companies?page=1&page_size=100'),
-        apiClient.get('/departments'),
-        getAssignableUsers(),
-        apiClient.get('/teams'),
-        apiClient.get(`/tasks/${task.id}/documents`),
-      ]);
+    const results = await Promise.allSettled([
+      apiClient.get('/companies?page=1&page_size=100'),
+      apiClient.get('/departments'),
+      getAssignableUsers(),
+      apiClient.get('/teams'),
+      apiClient.get(`/tasks/${task.id}/documents`),
+    ]);
 
-      const sortedCompanies = [...(companiesRes.data.companies || [])].sort((a, b) =>
+    const [companiesResult, departmentsResult, usersResult, teamsResult, attachmentsResult] = results;
+
+    if (companiesResult.status === 'fulfilled') {
+      const sortedCompanies = [...(companiesResult.value.data.companies || [])].sort((a, b) =>
         String(a.name || '').localeCompare(String(b.name || ''))
       );
       setCompanies(sortedCompanies);
-      const departmentsData = Array.isArray(departmentsRes.data)
-        ? departmentsRes.data
-        : (departmentsRes.data.departments || []);
-      setDepartments(departmentsData);
-      setUsers(assignableUsers);
-      setTeams(teamsRes.data.teams || []);
-      setAttachments(attachmentsRes.data || []);
-    } catch {
-      toast.error('Failed to load edit form data');
-    } finally {
-      setInitialLoading(false);
+    } else {
+      console.warn('Failed to fetch companies:', companiesResult.reason);
+      setCompanies([]);
     }
+
+    if (departmentsResult.status === 'fulfilled') {
+      const departmentsData = Array.isArray(departmentsResult.value.data)
+        ? departmentsResult.value.data
+        : (departmentsResult.value.data.departments || []);
+      setDepartments(departmentsData);
+    } else {
+      console.warn('Failed to fetch departments:', departmentsResult.reason);
+      setDepartments([]);
+    }
+
+    if (usersResult.status === 'fulfilled') {
+      setUsers(usersResult.value);
+    } else {
+      console.warn('Failed to fetch assignable users:', usersResult.reason);
+      setUsers([]);
+    }
+
+    if (teamsResult.status === 'fulfilled') {
+      setTeams(teamsResult.value.data.teams || []);
+    } else {
+      console.warn('Failed to fetch teams:', teamsResult.reason);
+      setTeams([]);
+    }
+
+    if (attachmentsResult.status === 'fulfilled') {
+      setAttachments(attachmentsResult.value.data || []);
+    } else {
+      console.warn('Failed to fetch task attachments:', attachmentsResult.reason);
+      setAttachments([]);
+    }
+
+    setInitialLoading(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -216,10 +243,16 @@ export default function EditTaskModal({ task, onClose, onSuccess }: EditTaskModa
                 value={formData.company_id}
                 onChange={(e) => setFormData({ ...formData, company_id: e.target.value })}
               >
-                <option value="" disabled>Select company...</option>
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
+                {companies.length === 0 ? (
+                  <option value="" disabled>No companies available</option>
+                ) : (
+                  <>
+                    <option value="" disabled>Select company...</option>
+                    {companies.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </>
+                )}
               </select>
             </div>
 
@@ -324,10 +357,16 @@ export default function EditTaskModal({ task, onClose, onSuccess }: EditTaskModa
                 value={formData.assigned_user_id}
                 onChange={(e) => setFormData({ ...formData, assigned_user_id: e.target.value })}
               >
-                <option value="">Select user...</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>{u.full_name} ({u.email})</option>
-                ))}
+                {users.length === 0 ? (
+                  <option value="" disabled>No one available to assign — contact an admin</option>
+                ) : (
+                  <>
+                    <option value="">Select user...</option>
+                    {users.map((u) => (
+                      <option key={u.id} value={u.id}>{u.full_name} ({u.email})</option>
+                    ))}
+                  </>
+                )}
               </select>
             ) : (
               <select

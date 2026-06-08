@@ -130,8 +130,6 @@ def list_companies(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    _require_companies_read(db=db, current_user=current_user)
-
     branch_ids = resolve_admin_branch_ids(branch_user_id, current_user, db)
     if branch_ids is not None and not branch_ids:
         return CompanyListResponse(companies=[], total=0, page=page, page_size=page_size)
