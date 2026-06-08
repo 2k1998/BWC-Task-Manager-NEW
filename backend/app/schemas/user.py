@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from typing import Optional
 from datetime import datetime
 from uuid import UUID
@@ -39,6 +39,16 @@ class UserUpdate(BaseModel):
     user_type: Optional[str] = None
     is_active: Optional[bool] = None
     parent_id: Optional[UUID] = None
+
+
+class UserBrief(BaseModel):
+    """Minimal user info for assignee pickers."""
+    id: UUID
+    full_name: str
+    email: str
+    user_type: str
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UserResponse(BaseModel):

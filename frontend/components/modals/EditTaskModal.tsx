@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import apiClient from '@/lib/apiClient';
+import { getAssignableUsers, type UserBrief } from '@/lib/api/users';
 import { Button } from '@/components/ui';
 import type { Task, TaskDocumentAttachment } from '@/lib/types';
 import { extractErrorMessage } from '@/lib/utils';
@@ -27,7 +28,7 @@ export default function EditTaskModal({ task, onClose, onSuccess }: EditTaskModa
   const [attachments, setAttachments] = useState<TaskDocumentAttachment[]>([]);
   const [companies, setCompanies] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<UserBrief[]>([]);
   const [teams, setTeams] = useState<any[]>([]);
 
   const [formData, setFormData] = useState({
@@ -62,10 +63,10 @@ export default function EditTaskModal({ task, onClose, onSuccess }: EditTaskModa
 
   const fetchDependencies = async () => {
     try {
-      const [companiesRes, departmentsRes, usersRes, teamsRes, attachmentsRes] = await Promise.all([
+      const [companiesRes, departmentsRes, assignableUsers, teamsRes, attachmentsRes] = await Promise.all([
         apiClient.get('/companies?page=1&page_size=100'),
         apiClient.get('/departments'),
-        apiClient.get('/users'),
+        getAssignableUsers(),
         apiClient.get('/teams'),
         apiClient.get(`/tasks/${task.id}/documents`),
       ]);
@@ -78,7 +79,7 @@ export default function EditTaskModal({ task, onClose, onSuccess }: EditTaskModa
         ? departmentsRes.data
         : (departmentsRes.data.departments || []);
       setDepartments(departmentsData);
-      setUsers(usersRes.data.users || []);
+      setUsers(assignableUsers);
       setTeams(teamsRes.data.teams || []);
       setAttachments(attachmentsRes.data || []);
     } catch {
@@ -325,7 +326,7 @@ export default function EditTaskModal({ task, onClose, onSuccess }: EditTaskModa
               >
                 <option value="">Select user...</option>
                 {users.map((u) => (
-                  <option key={u.id} value={u.id}>{u.first_name} {u.last_name} ({u.username})</option>
+                  <option key={u.id} value={u.id}>{u.full_name} ({u.email})</option>
                 ))}
               </select>
             ) : (

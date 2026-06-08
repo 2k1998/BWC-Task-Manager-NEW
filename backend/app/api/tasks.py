@@ -25,9 +25,25 @@ from app.schemas.task import (
 )
 from app.schemas.task_comment import TaskCommentCreate, TaskCommentResponse
 from app.utils.activity_logger import log_activity
+from app.utils.hierarchy import get_assignable_user_ids
 from app.utils.notification_service import create_notification
 
 MAX_TASK_ATTACHMENT_SIZE = 100 * 1024 * 1024
+
+
+def _validate_assigned_user_assignable(
+    actor: User,
+    assigned_user_id: UUID,
+    db: Session,
+) -> None:
+    assignable_ids = get_assignable_user_ids(actor, db)
+    if assignable_ids is None:
+        return
+    if assigned_user_id not in assignable_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only assign tasks to users in your branch.",
+        )
 
 
 def _ensure_upload_dir() -> Path:
@@ -192,6 +208,7 @@ def create_task(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Assigned user not found"
             )
+        _validate_assigned_user_assignable(current_user, task_data.assigned_user_id, db)
     
     if task_data.assigned_team_id:
         from app.models.team import Team
@@ -790,6 +807,9 @@ def update_task(
                         status_code=status.HTTP_404_NOT_FOUND,
                         detail="Assigned user not found"
                     )
+                _validate_assigned_user_assignable(
+                    current_user, task_data.assigned_user_id, db
+                )
                 task.assigned_user_id = task_data.assigned_user_id
                 task.assigned_team_id = None
             

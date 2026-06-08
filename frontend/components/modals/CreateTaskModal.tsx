@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import apiClient from '@/lib/apiClient';
+import { getAssignableUsers, type UserBrief } from '@/lib/api/users';
 import { getErrorMessage } from '@/lib/errorHandler';
 import { extractErrorMessage } from '@/lib/utils';
 import { Button } from '@/components/ui';
@@ -37,7 +38,7 @@ export default function CreateTaskModal({ onClose, onSuccess }: CreateTaskModalP
   // Data Sources
   const [companies, setCompanies] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]); // UI Convenience only
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<UserBrief[]>([]);
   const [teams, setTeams] = useState<any[]>([]);
 
   // Form State
@@ -66,10 +67,10 @@ export default function CreateTaskModal({ onClose, onSuccess }: CreateTaskModalP
 
   const fetchDependencies = async () => {
     try {
-      const [companiesRes, departmentsRes, usersRes, teamsRes] = await Promise.all([
+      const [companiesRes, departmentsRes, assignableUsers, teamsRes] = await Promise.all([
         apiClient.get('/companies?page=1&page_size=100'),
         apiClient.get('/departments'),
-        apiClient.get('/admin/users'), 
+        getAssignableUsers(),
         apiClient.get('/teams'),
       ]);
 
@@ -78,7 +79,7 @@ export default function CreateTaskModal({ onClose, onSuccess }: CreateTaskModalP
         ? departmentsRes.data
         : (departmentsRes.data.departments || []);
       setDepartments(departmentsData);
-      setUsers(usersRes.data.users || []);
+      setUsers(assignableUsers);
       setTeams(teamsRes.data.teams || []);
 
       // Auto-select first department if available
@@ -381,7 +382,7 @@ export default function CreateTaskModal({ onClose, onSuccess }: CreateTaskModalP
                         >
                             <option value="">Select User...</option>
                             {users.map(u => (
-                                <option key={u.id} value={u.id}>{u.first_name} {u.last_name} ({u.username})</option>
+                                <option key={u.id} value={u.id}>{u.full_name} ({u.email})</option>
                             ))}
                         </select>
                     </div>

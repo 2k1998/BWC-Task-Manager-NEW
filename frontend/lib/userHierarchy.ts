@@ -3,7 +3,7 @@ export const HIERARCHY_MANAGER_ROLES = ['Admin', 'Pillar', 'Manager', 'Head'] as
 export type HierarchyManagerRole = (typeof HIERARCHY_MANAGER_ROLES)[number];
 
 export const ROLE_CREATION_MAP: Record<string, string[]> = {
-  Admin: ['Pillar', 'Manager', 'Head', 'Agent'],
+  Admin: ['Admin', 'Pillar', 'Manager', 'Head', 'Agent'],
   Pillar: ['Manager', 'Head', 'Agent'],
   Manager: ['Head', 'Agent'],
   Head: ['Agent'],

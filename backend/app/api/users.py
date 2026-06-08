@@ -6,9 +6,51 @@ from uuid import UUID
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.user import User
-from app.utils.hierarchy import get_descendant_ids, get_visible_user_ids
+from app.schemas.user import UserBrief
+from app.utils.hierarchy import get_assignable_user_ids, get_descendant_ids, get_visible_user_ids
 
 router = APIRouter(prefix="/users", tags=["Users"])
+
+USER_TYPE_RANK = {
+    "Admin": 0,
+    "Pillar": 1,
+    "Manager": 2,
+    "Head": 3,
+    "Agent": 4,
+}
+
+
+def _user_brief(user: User) -> UserBrief:
+    return UserBrief(
+        id=user.id,
+        full_name=f"{user.first_name} {user.last_name}".strip(),
+        email=user.email,
+        user_type=user.user_type,
+    )
+
+
+def _sort_users_for_assignable(users: list[User]) -> list[User]:
+    return sorted(
+        users,
+        key=lambda u: (
+            USER_TYPE_RANK.get(u.user_type, 99),
+            f"{u.first_name} {u.last_name}".strip().lower(),
+        ),
+    )
+
+
+@router.get("/assignable", response_model=list[UserBrief])
+def list_assignable_users(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Users the current actor may assign tasks to."""
+    assignable_ids = get_assignable_user_ids(current_user, db)
+    users_q = db.query(User).filter(User.is_active.is_(True))
+    if assignable_ids is not None:
+        users_q = users_q.filter(User.id.in_(assignable_ids))
+    users = _sort_users_for_assignable(users_q.all())
+    return [_user_brief(user) for user in users]
 
 
 @router.get("")

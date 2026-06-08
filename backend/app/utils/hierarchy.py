@@ -157,3 +157,34 @@ def validate_can_manage_target(actor: User, target_id: UUID, db: Session) -> Non
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have access to this user",
         )
+
+
+def get_branch_root(user: User, db: Session) -> User:
+    """
+    Returns the topmost non-Admin ancestor of `user`.
+    For non-Admin: walks up parent_id until parent is None or parent's user_type == "Admin".
+    Returns the last non-Admin encountered.
+    """
+    current = user
+    for _ in range(10):
+        if current.parent_id is None:
+            return current
+        parent = db.query(User).filter(User.id == current.parent_id).first()
+        if not parent:
+            return current
+        if parent.user_type == "Admin":
+            return current
+        current = parent
+    return current
+
+
+def get_assignable_user_ids(user: User, db: Session) -> list[UUID] | None:
+    """
+    Returns user IDs that `user` can ASSIGN a task to.
+    Returns None for Admin (assign to anyone).
+    For non-Admin: branch_root.id + get_descendant_ids(branch_root.id, db)
+    """
+    if user.user_type == "Admin":
+        return None
+    branch_root = get_branch_root(user, db)
+    return [branch_root.id, *get_descendant_ids(branch_root.id, db)]
