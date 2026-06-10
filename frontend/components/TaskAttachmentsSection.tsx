@@ -51,6 +51,25 @@ function DocIcon() {
   );
 }
 
+function DownloadIcon() {
+  return (
+    <svg
+      className="w-4 h-4"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      aria-hidden
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={1.5}
+        d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12M12 16.5V3"
+      />
+    </svg>
+  );
+}
+
 interface TaskAttachmentsSectionProps {
   taskId: string;
   taskOwnerUserId?: string;
@@ -63,6 +82,8 @@ export default function TaskAttachmentsSection({ taskId, taskOwnerUserId }: Task
   const [attachUploading, setAttachUploading] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<TaskDocumentAttachment | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set());
+  const [downloadErrors, setDownloadErrors] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchDocuments = useCallback(async () => {
@@ -106,6 +127,38 @@ export default function TaskAttachmentsSection({ taskId, taskOwnerUserId }: Task
     } finally {
       setAttachUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDownload = async (documentId: string, filename: string) => {
+    setDownloadErrors((prev) => {
+      const next = { ...prev };
+      delete next[documentId];
+      return next;
+    });
+    setDownloadingIds((prev) => new Set(prev).add(documentId));
+    try {
+      const response = await apiClient.get(`/documents/${documentId}`, {
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      setDownloadErrors((prev) => ({
+        ...prev,
+        [documentId]: getErrorMessage(err, 'Failed to download file'),
+      }));
+    } finally {
+      setDownloadingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(documentId);
+        return next;
+      });
     }
   };
 
@@ -194,18 +247,35 @@ export default function TaskAttachmentsSection({ taskId, taskOwnerUserId }: Task
                         {formatFileSize(doc.size_bytes)}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        {showRemove ? (
+                        <div className="flex items-center justify-end gap-2">
                           <Button
                             type="button"
-                            variant="destructive"
+                            variant="outline"
                             size="sm"
-                            onClick={() => setRemoveTarget(doc)}
+                            disabled={downloadingIds.has(doc.document_id)}
+                            onClick={() => handleDownload(doc.document_id, doc.filename)}
+                            aria-label={`Download ${doc.filename}`}
                           >
-                            Remove
+                            {downloadingIds.has(doc.document_id) ? (
+                              <span className="inline-block h-4 w-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <DownloadIcon />
+                            )}
                           </Button>
-                        ) : (
-                          <span className="text-gray-400 text-xs">—</span>
-                        )}
+                          {showRemove ? (
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => setRemoveTarget(doc)}
+                            >
+                              Remove
+                            </Button>
+                          ) : null}
+                        </div>
+                        {downloadErrors[doc.document_id] ? (
+                          <p className="text-xs text-red-600 mt-1">{downloadErrors[doc.document_id]}</p>
+                        ) : null}
                       </td>
                     </tr>
                   );

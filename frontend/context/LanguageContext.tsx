@@ -34,7 +34,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
             ?.split("=")[1] ?? "";
         setLanguageState(profileLanguage);
         document.cookie = `NEXT_LOCALE=${profileLanguage};path=/;max-age=31536000`;
-        if (currentCookieLocale !== profileLanguage) {
+        if (currentCookieLocale !== '' && currentCookieLocale !== profileLanguage) {
           window.location.reload();
         }
       } catch {
