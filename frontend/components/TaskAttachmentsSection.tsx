@@ -1,6 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
+import { isAxiosError } from 'axios';
 import { toast } from 'sonner';
 
 import apiClient from '@/lib/apiClient';
@@ -77,6 +79,7 @@ interface TaskAttachmentsSectionProps {
 
 export default function TaskAttachmentsSection({ taskId, taskOwnerUserId }: TaskAttachmentsSectionProps) {
   const { user } = useAuth();
+  const tTasks = useTranslations('Tasks');
   const [items, setItems] = useState<TaskDocumentAttachment[]>([]);
   const [loading, setLoading] = useState(true);
   const [attachUploading, setAttachUploading] = useState(false);
@@ -149,9 +152,18 @@ export default function TaskAttachmentsSection({ taskId, taskOwnerUserId }: Task
       link.click();
       link.remove();
     } catch (err) {
+      let message = tTasks('downloadFailed');
+      if (isAxiosError(err)) {
+        const status = err.response?.status;
+        if (status === 404) {
+          message = tTasks('downloadFileNotAvailable');
+        } else if (status === 403) {
+          message = tTasks('downloadForbidden');
+        }
+      }
       setDownloadErrors((prev) => ({
         ...prev,
-        [documentId]: getErrorMessage(err, 'Failed to download file'),
+        [documentId]: message,
       }));
     } finally {
       setDownloadingIds((prev) => {

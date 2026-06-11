@@ -89,7 +89,10 @@
     "onProcess": "On Process",
     "pending": "Pending",
     "looseEnd": "Loose End",
-    "completed": "Completed"
+    "completed": "Completed",
+    "downloadFileNotAvailable": "File no longer available. Please re-upload.",
+    "downloadForbidden": "You don't have permission to download this file.",
+    "downloadFailed": "Download failed. Please try again."
   },
   "Contacts": {
     "newContact": "New Contact",
