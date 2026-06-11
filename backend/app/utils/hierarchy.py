@@ -161,22 +161,17 @@ def validate_can_manage_target(actor: User, target_id: UUID, db: Session) -> Non
 
 def get_organization_admin(user: User, db: Session) -> User | None:
     """
-    Returns the Admin ancestor of `user`.
-    Admin users return themselves.
-    Non-Admin: walks parent_id chain up to depth 20 to find Admin.
-    Returns None if orphan (no Admin ancestor) or max depth exceeded.
+    Returns the root Admin of the organization tree.
+    Walks parent chain to root (parent_id IS NULL), regardless of user_type.
+    Returns None if a parent is missing or max depth (20) is exceeded.
     """
-    if user.user_type == "Admin":
-        return user
     current = user
     for _ in range(20):
         if current.parent_id is None:
-            return None
+            return current
         parent = db.query(User).filter(User.id == current.parent_id).first()
         if not parent:
             return None
-        if parent.user_type == "Admin":
-            return parent
         current = parent
     return None
 

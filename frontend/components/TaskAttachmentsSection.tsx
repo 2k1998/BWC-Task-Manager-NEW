@@ -178,7 +178,7 @@ export default function TaskAttachmentsSection({ taskId, taskOwnerUserId }: Task
   };
 
   return (
-    <Card className="p-0 overflow-hidden">
+    <Card className="p-0 min-w-0">
       <div className="px-6 py-4 border-b border-gray-200 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-bold text-gray-900">Attachments</h2>
         <div className="flex items-center gap-2">
@@ -209,79 +209,87 @@ export default function TaskAttachmentsSection({ taskId, taskOwnerUserId }: Task
         </div>
       </div>
 
-      <div className="p-6">
+      <div className="p-6 @container min-w-0">
         {loading ? (
           <LoadingSkeleton variant="table" count={4} />
         ) : items.length === 0 ? (
           <EmptyState title="No attachments yet." />
         ) : (
-          <Table>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200 text-left text-gray-600">
-                  <th className="px-4 py-3 font-medium">File</th>
-                  <th className="px-4 py-3 font-medium hidden sm:table-cell">Uploaded by</th>
-                  <th className="px-4 py-3 font-medium hidden md:table-cell">Date</th>
-                  <th className="px-4 py-3 font-medium">Size</th>
-                  <th className="px-4 py-3 font-medium w-28 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((doc) => {
-                  const showRemove = canRemoveAttachment(user, taskOwnerUserId, doc.uploaded_by);
-                  return (
-                    <tr key={doc.id} className="border-b border-gray-100 last:border-0">
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <DocIcon />
-                          <span className="font-medium text-gray-900 truncate" title={doc.filename}>
-                            {doc.filename}
+          <Table className="min-w-0">
+            <div className="overflow-x-auto min-w-0">
+              <table className="w-full min-w-[20rem] text-sm table-fixed">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200 text-left text-gray-600">
+                    <th className="px-3 py-3 font-medium w-px">File</th>
+                    <th className="px-3 py-3 font-medium w-28 hidden @sm:table-cell">Uploaded by</th>
+                    <th className="px-3 py-3 font-medium w-32 hidden @lg:table-cell">Date</th>
+                    <th className="px-3 py-3 font-medium w-20">Size</th>
+                    <th className="px-3 py-3 font-medium w-36 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((doc) => {
+                    const showRemove = canRemoveAttachment(user, taskOwnerUserId, doc.uploaded_by);
+                    return (
+                      <tr key={doc.id} className="border-b border-gray-100 last:border-0">
+                        <td className="px-3 py-3 max-w-0">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <DocIcon />
+                            <span className="font-medium text-gray-900 truncate" title={doc.filename}>
+                              {doc.filename}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 text-gray-700 hidden @sm:table-cell max-w-0">
+                          <span className="block truncate" title={doc.uploaded_by}>
+                            {doc.uploaded_by}
                           </span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-gray-700 hidden sm:table-cell">{doc.uploaded_by}</td>
-                      <td className="px-4 py-3 text-gray-600 hidden md:table-cell">
-                        {new Date(doc.created_at).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
-                        {formatFileSize(doc.size_bytes)}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={downloadingIds.has(doc.document_id)}
-                            onClick={() => handleDownload(doc.document_id, doc.filename)}
-                            aria-label={`Download ${doc.filename}`}
-                          >
-                            {downloadingIds.has(doc.document_id) ? (
-                              <span className="inline-block h-4 w-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                            ) : (
-                              <DownloadIcon />
-                            )}
-                          </Button>
-                          {showRemove ? (
+                        </td>
+                        <td className="px-3 py-3 text-gray-600 hidden @lg:table-cell max-w-0">
+                          <span className="block truncate" title={new Date(doc.created_at).toLocaleString()}>
+                            {new Date(doc.created_at).toLocaleString()}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3 text-gray-600 whitespace-nowrap w-20">
+                          {formatFileSize(doc.size_bytes)}
+                        </td>
+                        <td className="px-3 py-3 text-right w-36 whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-2 shrink-0 flex-nowrap">
                             <Button
                               type="button"
-                              variant="destructive"
+                              variant="outline"
                               size="sm"
-                              onClick={() => setRemoveTarget(doc)}
+                              disabled={downloadingIds.has(doc.document_id)}
+                              onClick={() => handleDownload(doc.document_id, doc.filename)}
+                              aria-label={`Download ${doc.filename}`}
                             >
-                              Remove
+                              {downloadingIds.has(doc.document_id) ? (
+                                <span className="inline-block h-4 w-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <DownloadIcon />
+                              )}
                             </Button>
+                            {showRemove ? (
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => setRemoveTarget(doc)}
+                              >
+                                Remove
+                              </Button>
+                            ) : null}
+                          </div>
+                          {downloadErrors[doc.document_id] ? (
+                            <p className="text-xs text-red-600 mt-1">{downloadErrors[doc.document_id]}</p>
                           ) : null}
-                        </div>
-                        {downloadErrors[doc.document_id] ? (
-                          <p className="text-xs text-red-600 mt-1">{downloadErrors[doc.document_id]}</p>
-                        ) : null}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </Table>
         )}
       </div>
