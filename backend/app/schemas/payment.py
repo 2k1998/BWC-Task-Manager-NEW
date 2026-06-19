@@ -17,6 +17,10 @@ PaymentType = Literal[
     "bill",
     "purchase",
     "service",
+    "fuel",
+    "car_washing",
+    "coffee_meals",
+    "parking",
 ]
 
 

@@ -60,6 +60,10 @@ const PAYMENT_TYPE_OPTIONS = [
   { value: 'bill', label: 'Bill' },
   { value: 'purchase', label: 'Purchase' },
   { value: 'service', label: 'Service' },
+  { value: 'fuel', label: 'Fuel' },
+  { value: 'car_washing', label: 'Car Washing' },
+  { value: 'coffee_meals', label: 'Coffee/Meals' },
+  { value: 'parking', label: 'Parking' },
 ];
 
 export default function PaymentModal(props: PaymentModalProps) {
