@@ -46,6 +46,8 @@ export default function CreateUserModal({
   const [saving, setSaving] = useState(false);
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
+  const [usernameTouched, setUsernameTouched] = useState(false);
   const [userType, setUserType] = useState('');
   const [parentId, setParentId] = useState('');
 
@@ -72,6 +74,8 @@ export default function CreateUserModal({
   const resetForm = () => {
     setFullName('');
     setEmail('');
+    setUsername('');
+    setUsernameTouched(false);
     const defaultRole = creatableRoles[0] ?? '';
     setUserType(defaultRole);
     setParentId(!isAdmin && currentUserId ? currentUserId : '');
@@ -98,11 +102,17 @@ export default function CreateUserModal({
     const { first_name, last_name } = parseFullName(fullName);
     if (!first_name || !email || !userType) return;
 
+    const trimmedUsername = username.trim();
+    if (trimmedUsername.length < 3 || trimmedUsername.length > 50) {
+      toast.error(t('usernameInvalid'));
+      return;
+    }
+
     try {
       setSaving(true);
       const { data } = await apiClient.post('/admin/users', {
         email,
-        username: deriveUsername(email),
+        username: trimmedUsername,
         first_name,
         last_name,
         user_type: userType,
@@ -152,7 +162,33 @@ export default function CreateUserModal({
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">{t('email')}</label>
-          <Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+          <Input
+            type="email"
+            required
+            value={email}
+            onChange={(e) => {
+              const nextEmail = e.target.value;
+              setEmail(nextEmail);
+              if (!usernameTouched) {
+                setUsername(deriveUsername(nextEmail));
+              }
+            }}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">{t('username')}</label>
+          <Input
+            required
+            minLength={3}
+            maxLength={50}
+            value={username}
+            placeholder={t('usernameHelper')}
+            onChange={(e) => {
+              setUsernameTouched(true);
+              setUsername(e.target.value);
+            }}
+          />
+          <p className="mt-1 text-sm text-gray-500">{t('usernameHelper')}</p>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">{t('userType')}</label>

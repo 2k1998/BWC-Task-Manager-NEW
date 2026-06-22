@@ -66,11 +66,20 @@ export function parseFullName(fullName: string): { first_name: string; last_name
 }
 
 export function deriveUsername(email: string): string {
-  const local = email.split('@')[0] ?? 'user';
-  const slug = local
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]/g, '')
-    .slice(0, 50);
+  const trimmed = email.trim();
+  const atIndex = trimmed.indexOf('@');
+  const local = atIndex >= 0 ? trimmed.slice(0, atIndex) : trimmed;
+  const domainPart = atIndex >= 0 ? trimmed.slice(atIndex + 1) : '';
+  const domainSegment = domainPart.split('.')[0] ?? '';
+
+  const sanitize = (part: string) =>
+    part.toLowerCase().replace(/[^a-z0-9._-]/g, '').replace(/\./g, '');
+
+  const combined = domainSegment
+    ? `${sanitize(local)}_${sanitize(domainSegment)}`
+    : sanitize(local);
+
+  const slug = combined.slice(0, 50);
   return slug.length >= 3 ? slug : `user${Date.now().toString(36).slice(-6)}`;
 }
 
