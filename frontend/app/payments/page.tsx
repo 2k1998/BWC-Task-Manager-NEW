@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 
 import ProtectedLayout from '@/components/ProtectedLayout';
@@ -29,6 +30,7 @@ import {
 } from '@/components/ui';
 
 export default function PaymentsPage() {
+  const t = useTranslations('Payments');
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +58,7 @@ export default function PaymentsPage() {
   // Modals
   const [paymentModal, setPaymentModal] = useState<
     | { open: false }
-    | { open: true; mode: 'create' }
+    | { open: true; mode: 'create'; defaultIsIncome: boolean }
     | { open: true; mode: 'edit'; payment: Payment }
   >({ open: false });
 
@@ -249,17 +251,30 @@ export default function PaymentsPage() {
           </div>
 
           {canEditPayments && (
-            <Button
-              onClick={() => setPaymentModal({ open: true, mode: 'create' })}
-              variant="primary"
-              className="flex items-center justify-center gap-2 w-full sm:w-auto"
-              aria-label="Add Payment"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-              </svg>
-              Add Payment
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <Button
+                onClick={() => setPaymentModal({ open: true, mode: 'create', defaultIsIncome: false })}
+                variant="primary"
+                className="flex items-center justify-center gap-2 w-full sm:w-auto"
+                aria-label={t('modalTitlePayment')}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+                {t('modalTitlePayment')}
+              </Button>
+              <Button
+                onClick={() => setPaymentModal({ open: true, mode: 'create', defaultIsIncome: true })}
+                variant="secondary"
+                className="flex items-center justify-center gap-2 w-full sm:w-auto bg-green-50 text-green-700 border-green-300 hover:bg-green-50/30"
+                aria-label={t('addIncome')}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+                {t('addIncome')}
+              </Button>
+            </div>
           )}
         </div>
 
@@ -537,6 +552,7 @@ export default function PaymentsPage() {
         {paymentModal.open && paymentModal.mode === 'create' && canEditPayments && (
           <PaymentModal
             mode="create"
+            defaultIsIncome={paymentModal.defaultIsIncome}
             onClose={() => setPaymentModal({ open: false })}
             onSuccess={fetchPayments}
           />

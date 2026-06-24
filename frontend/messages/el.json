@@ -111,6 +111,9 @@
   },
   "Payments": {
     "newPayment": "Νέα Πληρωμή",
+    "addIncome": "Προσθήκη Εισοδήματος",
+    "modalTitleIncome": "Προσθήκη Εισοδήματος",
+    "modalTitlePayment": "Προσθήκη Πληρωμής",
     "amount": "Ποσό",
     "type": "Τύπος",
     "category": "Κατηγορία",

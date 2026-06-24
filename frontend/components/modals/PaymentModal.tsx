@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 
 import { useAuth } from '@/context/AuthContext';
@@ -42,6 +43,7 @@ function combineDescriptionAndNotes(description: string, notes: string) {
 type PaymentModalProps =
   | {
       mode: 'create';
+      defaultIsIncome?: boolean;
       onClose: () => void;
       onSuccess: () => void | Promise<void>;
     }
@@ -67,11 +69,13 @@ const PAYMENT_TYPE_OPTIONS = [
 ];
 
 export default function PaymentModal(props: PaymentModalProps) {
+  const t = useTranslations('Payments');
   const { user } = useAuth();
   const isAdmin = user?.user_type === 'Admin';
 
   const mode = props.mode;
   const payment = mode === 'edit' ? props.payment : null;
+  const createDefaultIsIncome = mode === 'create' ? (props.defaultIsIncome ?? false) : false;
 
   const [initialLoading, setInitialLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -89,7 +93,7 @@ export default function PaymentModal(props: PaymentModalProps) {
     payment_type: '',
     payment_category: '',
     payment_date: today,
-    is_income: false,
+    is_income: createDefaultIsIncome,
     employee_user_id: '',
     company_id: '',
     notes: '',
@@ -235,7 +239,12 @@ export default function PaymentModal(props: PaymentModalProps) {
     }
   };
 
-  const modalTitle = mode === 'create' ? 'Add Payment' : 'Edit Payment';
+  const modalTitle =
+    mode === 'create'
+      ? createDefaultIsIncome
+        ? t('modalTitleIncome')
+        : t('modalTitlePayment')
+      : 'Edit Payment';
 
   if (initialLoading) {
     return (

@@ -111,6 +111,9 @@
   },
   "Payments": {
     "newPayment": "New Payment",
+    "addIncome": "Add Income",
+    "modalTitleIncome": "Add Income",
+    "modalTitlePayment": "Add Payment",
     "amount": "Amount",
     "type": "Type",
     "category": "Category",
