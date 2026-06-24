@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import ProtectedLayout from '@/components/ProtectedLayout';
 import ProjectCard from '@/components/ProjectCard';
+import ProjectDetailDrawer from '@/components/ProjectDetailDrawer';
 import CreateProjectModal from '@/components/modals/CreateProjectModal';
 import apiClient from '@/lib/apiClient';
 import { useBranchFilter } from '@/context/BranchFilterContext';
@@ -31,6 +32,7 @@ function ProjectsPageContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
 
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -285,7 +287,12 @@ function ProjectsPageContent() {
         {!loading && !error && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {projects?.projects.map((project) => (
-              <ProjectCard key={project.id} project={project} showStatusMenu={canEditProjects} />
+              <ProjectCard
+                key={project.id}
+                project={project}
+                onProjectClick={(id) => setSelectedProjectId(id)}
+                showStatusMenu={canEditProjects}
+              />
             ))}
           </div>
         )}
@@ -298,6 +305,13 @@ function ProjectsPageContent() {
                 }}
             />
         )}
+
+        <ProjectDetailDrawer
+          projectId={selectedProjectId}
+          isOpen={!!selectedProjectId}
+          onClose={() => setSelectedProjectId(null)}
+          onProjectUpdated={fetchProjects}
+        />
       </div>
     </ProtectedLayout>
   );

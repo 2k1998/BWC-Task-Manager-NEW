@@ -1,9 +1,9 @@
 import type { Project } from '@/lib/types';
-import Link from 'next/link';
 import { useState, useRef, useEffect } from 'react';
 
 interface ProjectCardProps {
   project: Project;
+  onProjectClick: (id: string) => void;
   onStatusChange?: (projectId: string, newStatus: string) => Promise<void>;
   /** When false, hides status actions menu (edit-level UI). */
   showStatusMenu?: boolean;
@@ -17,7 +17,7 @@ const statusColors = {
   Cancelled: 'bg-red-100 text-red-800',
 };
 
-export default function ProjectCard({ project, onStatusChange, showStatusMenu = true }: ProjectCardProps) {
+export default function ProjectCard({ project, onProjectClick, onStatusChange, showStatusMenu = true }: ProjectCardProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -50,8 +50,10 @@ export default function ProjectCard({ project, onStatusChange, showStatusMenu = 
   };
 
   return (
-    <Link href={`/projects/${project.id}`}>
-      <div className={`bg-white rounded-lg p-5 shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer relative ${isUpdating ? 'opacity-50 pointer-events-none' : ''}`}>
+    <div
+      onClick={() => onProjectClick(project.id)}
+      className={`bg-white rounded-lg p-5 shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer relative ${isUpdating ? 'opacity-50 pointer-events-none' : ''}`}
+    >
         <div className="flex items-start justify-between mb-3">
           <h3 className="font-semibold text-gray-900 text-lg">{project.name}</h3>
           <div className="flex items-center gap-2 relative">
@@ -108,6 +110,5 @@ export default function ProjectCard({ project, onStatusChange, showStatusMenu = 
           </span>
         </div>
       </div>
-    </Link>
   );
 }
