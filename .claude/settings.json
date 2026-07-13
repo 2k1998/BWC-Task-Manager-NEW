@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Bash(python -m alembic heads)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(cd \"/c/Users/Κωνσταντίνος Καμπάνη/Desktop/BWT TSKMNGR NEW\" && grep -n \"RESTRICT\\\\|private per user\\\\|permanent\\\\|Permanent\\\\|architectural\\\\|product rule\" CLAUDE.md | head -20)",
+      "Read(//c/c/Users/Κωνσταντίνος Καμπάνη/Desktop/BWT TSKMNGR NEW/**)",
+      "Bash(curl -s http://localhost:3001/ -o /dev/null -w \"%{http_code}\")"
     ]
   }
 }

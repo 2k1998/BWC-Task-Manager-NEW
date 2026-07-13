@@ -32,7 +32,7 @@ from app.schemas.car import (
     CarUpdate,
 )
 from app.utils.activity_logger import log_activity
-from app.utils.permissions import check_user_permission
+from app.utils.permissions import user_has_permission
 
 router = APIRouter(prefix="/cars", tags=["Cars"])
 
@@ -51,16 +51,13 @@ def _car_snapshot(car: Car) -> dict:
     }
 
 
-def _require_cars_permission(db: Session, current_user: User) -> str:
-    permission = check_user_permission(db=db, user=current_user, page_key="cars")
-    if permission == "none":
+def _require_cars_permission(db: Session, current_user: User) -> None:
+    if not user_has_permission(current_user.id, "cars", "view", db):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have permission to access Cars")
-    return permission
 
 
 def _require_cars_full(db: Session, current_user: User) -> None:
-    permission = _require_cars_permission(db=db, current_user=current_user)
-    if permission != "full":
+    if not user_has_permission(current_user.id, "cars", "edit", db):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have permission to modify Cars")
 
 

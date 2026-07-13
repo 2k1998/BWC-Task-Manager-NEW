@@ -16,7 +16,7 @@ from app.models.document import Document
 from app.models.payment import Payment
 from app.schemas.activity_log import ActivityLogResponse, ActivityLogListResponse
 from app.utils.visibility import can_user_view_task, can_user_view_project
-from app.utils.permissions import check_user_permission
+from app.utils.permissions import user_has_permission
 
 router = APIRouter(prefix="/activity-logs", tags=["Activity Logs"])
 
@@ -128,8 +128,7 @@ def get_entity_activity_logs(
         if not payment:
             raise HTTPException(status_code=404, detail="Payment not found")
 
-        permission = check_user_permission(db=db, user=current_user, page_key="payments")
-        if permission == "none":
+        if not user_has_permission(current_user.id, "payments", "view", db):
             raise HTTPException(status_code=403, detail="You do not have access to payments activity logs")
         
     else:

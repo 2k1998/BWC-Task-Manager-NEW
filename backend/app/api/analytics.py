@@ -27,7 +27,7 @@ from app.schemas.analytics import (
 )
 from app.schemas.task import ALLOWED_STATUSES, ALLOWED_URGENCY_LABELS
 from app.utils.cache import TTLCache
-from app.utils.permissions import check_user_permission, get_user_hierarchy
+from app.utils.permissions import get_user_hierarchy, user_has_permission
 
 
 router = APIRouter(prefix="/analytics", tags=["Analytics"])
@@ -36,8 +36,7 @@ _cache = TTLCache(ttl_seconds=60)
 
 
 def _require_analytics_permission(db: Session, current_user: User) -> None:
-    permission = check_user_permission(db=db, user=current_user, page_key="analytics")
-    if permission == "none":
+    if not user_has_permission(current_user.id, "analytics", "view", db):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have permission to access Analytics",

@@ -15,7 +15,7 @@ from app.models.user import User
 from app.schemas.company import CompanyCreate, CompanyListResponse, CompanyResponse, CompanyUpdate
 from app.utils.activity_logger import log_activity
 from app.utils.notification_service import create_notification
-from app.utils.permissions import check_user_permission
+from app.utils.permissions import user_has_permission
 from app.utils.branch_filter import resolve_admin_branch_ids
 
 router = APIRouter(tags=["Companies"])
@@ -37,14 +37,19 @@ def _require_companies_permission(
     current_user: User,
     required: str,
 ):
-    permission = check_user_permission(db=db, user=current_user, page_key="companies")
-    if permission != required:
+    # Legacy page levels: read -> view, full -> edit
+    if required == "full":
+        module_level = "edit"
+    elif required == "read":
+        module_level = "view"
+    else:
+        module_level = required
+    if not user_has_permission(current_user.id, "companies", module_level, db):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have permission to access Companies")
 
 
 def _require_companies_read(db: Session, current_user: User) -> None:
-    permission = check_user_permission(db=db, user=current_user, page_key="companies")
-    if permission == "none":
+    if not user_has_permission(current_user.id, "companies", "view", db):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have permission to access Companies")
 
 
@@ -68,8 +73,7 @@ def create_company(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    permission = check_user_permission(db=db, user=current_user, page_key="companies")
-    if permission != "full":
+    if not user_has_permission(current_user.id, "companies", "edit", db):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have permission to create companies")
 
     existing = db.query(Company).filter(Company.name == company_data.name).first()
@@ -179,8 +183,7 @@ def update_company(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    permission = check_user_permission(db=db, user=current_user, page_key="companies")
-    if permission != "full":
+    if not user_has_permission(current_user.id, "companies", "edit", db):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have permission to update companies")
 
     company = db.query(Company).filter(Company.id == id, Company.deleted_at.is_(None)).first()

@@ -24,7 +24,7 @@ from app.schemas.payment import (
     PaymentType,
 )
 from app.utils.activity_logger import log_activity
-from app.utils.permissions import check_user_permission
+from app.utils.permissions import user_has_permission
 from app.utils.branch_filter import resolve_admin_branch_ids
 
 
@@ -49,11 +49,9 @@ def _payment_snapshot(payment: Payment) -> dict:
     }
 
 
-def _require_payments_permission(db: Session, current_user: User) -> str:
-    permission = check_user_permission(db=db, user=current_user, page_key="payments")
-    if permission == "none":
+def _require_payments_permission(db: Session, current_user: User) -> None:
+    if not user_has_permission(current_user.id, "payments", "view", db):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have permission to access Payments")
-    return permission
 
 
 def _build_payment_conditions(
@@ -93,8 +91,8 @@ def create_payment(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    permission = _require_payments_permission(db=db, current_user=current_user)
-    if permission != "full":
+    _require_payments_permission(db=db, current_user=current_user)
+    if not user_has_permission(current_user.id, "payments", "edit", db):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have permission to create Payments")
 
     company = db.query(Company).filter(Company.id == payment_data.company_id).first()
@@ -258,8 +256,8 @@ def update_payment(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    permission = _require_payments_permission(db=db, current_user=current_user)
-    if permission != "full":
+    _require_payments_permission(db=db, current_user=current_user)
+    if not user_has_permission(current_user.id, "payments", "edit", db):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have permission to update Payments")
 
     payment = db.query(Payment).filter(Payment.id == payment_id).first()
