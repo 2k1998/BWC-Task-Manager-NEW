@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone, timedelta
 import secrets
@@ -7,6 +7,7 @@ from app.core.database import get_db
 from app.core.security import verify_password, create_access_token, create_refresh_token, decode_token, hash_password
 from app.core.deps import get_current_user
 from app.core.config import settings
+from app.core.rate_limit import limiter
 from app.models.user import User
 from app.models.auth import AuthRefreshToken
 from app.schemas.auth import LoginRequest, TokenResponse, RefreshRequest
@@ -16,9 +17,18 @@ from app.utils.permissions import get_user_module_permissions_map
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
+# Bcrypt hash of a throwaway random value, used to equalise login response time
+# when the account does not exist (see login below). Never matches any input.
+_DUMMY_PASSWORD_HASH = hash_password(secrets.token_urlsafe(32))
+
+# Generic message for both "no such user" and "wrong password" - never reveal which.
+_INVALID_CREDENTIALS = "Incorrect username/email or password"
+
 
 @router.post("/login", response_model=TokenResponse)
+@limiter.limit("5/minute")
 def login(
+    request: Request,
     login_data: LoginRequest,
     db: Session = Depends(get_db)
 ):
@@ -28,23 +38,27 @@ def login(
     """
     # Find user by username or email
     user = db.query(User).filter(
-        (User.username == login_data.username_or_email) | 
+        (User.username == login_data.username_or_email) |
         (User.email == login_data.username_or_email)
     ).first()
-    
+
     if not user:
+        # Burn one bcrypt verification against a dummy hash so that an unknown
+        # account takes the same time as a known one with a wrong password.
+        # Without this, response timing enumerates valid usernames/emails.
+        verify_password(login_data.password, _DUMMY_PASSWORD_HASH)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username/email or password"
+            detail=_INVALID_CREDENTIALS
         )
-    
+
     # Verify password
     if not verify_password(login_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username/email or password"
+            detail=_INVALID_CREDENTIALS
         )
-    
+
     # Check if user is active
     if not user.is_active:
         raise HTTPException(
@@ -72,12 +86,17 @@ def login(
 
 
 @router.post("/refresh", response_model=TokenResponse)
+@limiter.limit("10/minute")
 def refresh_token(
+    request: Request,
     refresh_data: RefreshRequest,
     db: Session = Depends(get_db)
 ):
     """
     Refresh access token using refresh token.
+
+    The presented refresh token is rotated: it is deleted and a fresh one is
+    issued, so a leaked token is single-use.
     """
     # Decode refresh token
     payload = decode_token(refresh_data.refresh_token)
@@ -116,13 +135,23 @@ def refresh_token(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found or inactive"
         )
-    
-    # Create new access token
+
+    # Rotate: invalidate the presented refresh token and issue a new one.
+    db.delete(stored_token)
+
     access_token = create_access_token(data={"sub": str(user.id)})
-    
+    new_refresh_token_value = create_refresh_token(data={"sub": str(user.id)})
+
+    db.add(AuthRefreshToken(
+        user_id=user.id,
+        token=new_refresh_token_value,
+        expires_at=datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    ))
+    db.commit()
+
     return TokenResponse(
         access_token=access_token,
-        refresh_token=refresh_data.refresh_token
+        refresh_token=new_refresh_token_value
     )
 
 

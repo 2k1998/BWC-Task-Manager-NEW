@@ -97,30 +97,3 @@ def mark_all_as_read(
     db.commit()
     
     return {"message": "All notifications marked as read"}
-
-
-@router.post("/trigger-test", status_code=status.HTTP_201_CREATED)
-def trigger_test_notification(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Trigger a test notification for the current user.
-    """
-    import uuid
-    # Create dummy notification
-    notif = Notification(
-        recipient_user_id=current_user.id,
-        actor_user_id=current_user.id,
-        entity_type="System",
-        entity_id=uuid.uuid4(),
-        title="Test Notification",
-        message="This is a test notification to verify the system.",
-        link="/notifications",
-        notification_type="ASSIGNMENT",
-        read_status="Unread"
-    )
-    
-    db.add(notif)
-    db.commit()
-    return {"message": "Test notification sent"}

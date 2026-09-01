@@ -5,6 +5,12 @@ This script is idempotent - it will not create duplicate admin users.
 import sys
 import os
 
+# This script prints emoji; a cp1253/Greek Windows console would otherwise
+# raise UnicodeEncodeError before any real work happens. stderr is covered too
+# because the sys.exit() failure messages below also carry emoji.
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
@@ -16,14 +22,42 @@ from app.models.page import Page
 from app.models.permission import UserPagePermission
 
 
+MIN_ADMIN_PASSWORD_LENGTH = 10
+
+
+def _require_admin_password() -> str:
+    """Read the initial admin password from the environment.
+
+    Never defaulted in code - an unset or weak value aborts the script.
+    """
+    password = os.environ.get("ADMIN_INITIAL_PASSWORD")
+    if not password:
+        sys.exit(
+            "❌ ADMIN_INITIAL_PASSWORD is not set. Export it with the password for the "
+            "initial admin account before running this script."
+        )
+    if len(password) < MIN_ADMIN_PASSWORD_LENGTH:
+        sys.exit(
+            f"❌ ADMIN_INITIAL_PASSWORD must be at least {MIN_ADMIN_PASSWORD_LENGTH} "
+            f"characters (got {len(password)})."
+        )
+    return password
+
+
 def create_admin_user(
     email: str = "admin@bwc.com",
     username: str = "admin",
     first_name: str = "System",
     last_name: str = "Administrator",
-    password: str = "admin123"
+    password: str | None = None
 ):
-    """Create initial admin user with full permissions on all pages."""
+    """Create initial admin user with full permissions on all pages.
+
+    The password comes from ADMIN_INITIAL_PASSWORD unless one is passed explicitly.
+    """
+    if password is None:
+        password = _require_admin_password()
+
     db: Session = SessionLocal()
     
     try:
@@ -46,7 +80,6 @@ def create_admin_user(
             hashed_password=hash_password(password),
             user_type="Admin",
             is_active=True,
-            force_password_change=False,  # No forced password change for initial admin
             manager_id=None
         )
         
@@ -57,8 +90,7 @@ def create_admin_user(
         print(f"✅ Created admin user:")
         print(f"   Email: {email}")
         print(f"   Username: {username}")
-        print(f"   Password: {password}")
-        print(f"   ⚠️  CHANGE THIS PASSWORD IMMEDIATELY IN PRODUCTION!")
+        print(f"   Password: (from ADMIN_INITIAL_PASSWORD - not echoed)")
         
         # Get all pages
         pages = db.query(Page).all()

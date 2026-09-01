@@ -107,6 +107,17 @@ def send_message(
 ) -> ChatbotMessage:
     conv = _get_conversation_or_404(conversation_id, user, db)
 
+    # Defence in depth: the MessageCreate schema caps this too, but send_message
+    # is also reachable from other callers. Reject before anything is persisted.
+    if len(user_content) > settings.CHATBOT_MAX_USER_MESSAGE_CHARS:
+        raise HTTPException(
+            status_code=413,
+            detail=(
+                f"Message too long: {len(user_content)} characters "
+                f"(maximum {settings.CHATBOT_MAX_USER_MESSAGE_CHARS})."
+            ),
+        )
+
     user_msg = ChatbotMessage(
         conversation_id=conv.id,
         role="user",

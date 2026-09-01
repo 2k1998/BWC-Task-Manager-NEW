@@ -1,3 +1,4 @@
+import os
 import sys
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -6,8 +7,17 @@ import psycopg2
 import psycopg2.extras
 from collections import defaultdict, deque
 
-SOURCE_URL = "postgresql://new_wdze_user:diDNfAsRRqjulJWWPiQg8aYC2ZzXW8vg@dpg-d7chio28qa3s73adcum0-a.frankfurt-postgres.render.com/new_wdze"
-TARGET_URL = "postgresql://bwc_db_user:c6Z87O2cqDWaDNctxfmuK5MgtJ2bVMSj@dpg-d2nc2pa4d50c73e6j4ug-a.frankfurt-postgres.render.com/bwc_db"
+# Connection strings are read from the environment - never hardcode credentials.
+#   SOURCE_DATABASE_URL - database to copy FROM
+#   TARGET_DATABASE_URL - database to copy INTO (WILL BE DROPPED AND REBUILT)
+try:
+    SOURCE_URL = os.environ["SOURCE_DATABASE_URL"]
+    TARGET_URL = os.environ["TARGET_DATABASE_URL"]
+except KeyError as missing:
+    sys.exit(
+        f"Missing required environment variable: {missing.args[0]}. "
+        "Set SOURCE_DATABASE_URL and TARGET_DATABASE_URL before running this script."
+    )
 
 print("Connecting …")
 src = psycopg2.connect(SOURCE_URL)

@@ -6,7 +6,9 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 import uuid
 import os
+import re
 from pathlib import Path
+from urllib.parse import quote
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_admin
@@ -22,6 +24,23 @@ from app.utils.document_access import user_can_download_document
 from datetime import datetime, timezone
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
+
+# Anything outside this set is dropped from the ASCII fallback filename. Notably
+# excludes CR, LF and '"', which would otherwise let a crafted original_filename
+# inject extra response headers or break out of the quoted-string.
+_UNSAFE_FILENAME_CHARS = re.compile(r'[^A-Za-z0-9._ -]')
+
+
+def _content_disposition(filename: str) -> str:
+    """Build a header-injection-safe Content-Disposition for an attachment.
+
+    Emits a sanitised ASCII `filename=` for old clients plus an RFC 5987
+    `filename*=UTF-8''...` with the real (percent-encoded) name.
+    """
+    raw = (filename or "download").replace("\r", "").replace("\n", "")
+    ascii_name = _UNSAFE_FILENAME_CHARS.sub("_", raw).strip() or "download"
+    encoded_name = quote(raw, safe="")
+    return f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{encoded_name}"
 
 MAX_FILE_SIZE = 100 * 1024 * 1024
 ALLOWED_UPLOAD_SOURCES = frozenset({"document", "chat"})
@@ -213,7 +232,7 @@ def download_document(
         file_iterator(),
         media_type=document.mime_type,
         headers={
-            "Content-Disposition": f'attachment; filename="{document.original_filename}"'
+            "Content-Disposition": _content_disposition(document.original_filename)
         }
     )
 

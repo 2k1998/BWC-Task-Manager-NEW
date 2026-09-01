@@ -2,6 +2,8 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 logging.basicConfig(
     level=logging.INFO,
@@ -40,6 +42,7 @@ from app.services.daily_call_reminder_service import (
 )
 from app.services.retention_jobs import start_retention_scheduler, stop_retention_scheduler
 from app.core.config import settings
+from app.core.rate_limit import limiter
 
 
 @asynccontextmanager
@@ -62,10 +65,25 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Configure CORS
+# Rate limiting.
+# The limiter buckets by the first hop of X-Forwarded-For because the app runs
+# behind Render's reverse proxy - see app/core/rate_limit.py. This REQUIRES
+# uvicorn to be started with proxy headers trusted, e.g.
+#   uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips="*"
+# Without those flags X-Forwarded-For is attacker-controlled and the per-IP
+# buckets can be trivially evaded.
+# Per-endpoint limits are applied with @limiter.limit(...) on the handlers
+# (see app/api/auth.py); those handlers must take `request: Request` first.
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Configure CORS.
+# Origins come from the CORS_ALLOWED_ORIGINS env var (comma-separated) and
+# default to the production app origin. Append http://localhost:3001 in your
+# local .env for dev - never hardcode it here.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.CORS_ALLOWED_ORIGINS_LIST,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

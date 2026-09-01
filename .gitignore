@@ -4,3 +4,8 @@ backups/
 backend/uploads/*
 !backend/uploads/.gitkeep
 backend/scripts/.assignability_api_results.json
+
+# Build/debug artifacts - never commit
+*.zip
+backend/verify_output.txt
+__pycache__/

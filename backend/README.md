@@ -36,6 +36,9 @@ ACCESS_TOKEN_EXPIRE_MINUTES=15
 REFRESH_TOKEN_EXPIRE_DAYS=7
 APP_NAME=BWC Task Manager
 DEBUG=False
+# Comma-separated. Defaults to https://app.becausewecan.gr when unset.
+# For local dev, append the frontend dev server:
+CORS_ALLOWED_ORIGINS=https://app.becausewecan.gr,http://localhost:3001
 ```
 
 ### 4. Run Migrations
@@ -64,6 +67,28 @@ uvicorn app.main:app --reload
 ```
 
 The API will be available at `http://localhost:8000`
+
+### Production start command
+
+There is no `render.yaml` / `Procfile` in this repo — the start command is set in
+the Render dashboard. It **must** include the proxy flags:
+
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips="*"
+```
+
+The login/refresh rate limiter buckets clients by the first hop of
+`X-Forwarded-For` (see `app/core/rate_limit.py`). Without `--proxy-headers
+--forwarded-allow-ips="*"` that header is not trusted/parsed by uvicorn, and the
+per-IP buckets become spoofable — any caller can send an arbitrary
+`X-Forwarded-For` and get a fresh bucket on every request.
+
+**Rate limiter storage:** slowapi is configured with its default **in-memory**
+storage, which is per-process. Counters are not shared across uvicorn workers or
+Render instances, and they reset on every deploy or restart. If the app is ever
+run with more than one worker or instance, pass a Redis `storage_uri` to the
+`Limiter` in `app/core/rate_limit.py` — otherwise the effective limit is
+multiplied by the number of processes.
 
 ## API Documentation
 
@@ -174,17 +199,24 @@ Once the server is running, visit:
 - No implicit defaults
 - Backend is single source of truth
 
-## Default Credentials
+## Initial Admin Account
 
-After running `create_admin.py`:
+`create_admin.py` has no default password. Set `ADMIN_INITIAL_PASSWORD`
+(minimum 10 characters) in the environment before running it; the script exits
+with an error if the variable is unset or too short, and never echoes the value.
+
+```bash
+ADMIN_INITIAL_PASSWORD='<choose-a-strong-password>' python scripts/create_admin.py
+```
 
 ```
 Username: admin
 Email: admin@bwc.com
-Password: admin123
+Password: whatever you passed via ADMIN_INITIAL_PASSWORD
 ```
 
-**⚠️ CHANGE THIS PASSWORD IMMEDIATELY IN PRODUCTION!**
+Passwords are admin-controlled only — there is no self-service change-password
+flow. See the permanent product rules in the repo-root `CLAUDE.md`.
 
 ## Development
 

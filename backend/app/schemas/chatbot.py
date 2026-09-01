@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.core.config import settings
+
 
 class ConversationRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -23,7 +25,11 @@ class ConversationListItem(BaseModel):
 
 
 class MessageCreate(BaseModel):
-    content: str = Field(..., min_length=1, max_length=4000)
+    content: str = Field(
+        ...,
+        min_length=1,
+        max_length=settings.CHATBOT_MAX_USER_MESSAGE_CHARS,
+    )
 
 
 class MessageRead(BaseModel):

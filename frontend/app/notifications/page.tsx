@@ -4,15 +4,11 @@ import React, { useState, useEffect } from 'react';
 import ProtectedLayout from '@/components/ProtectedLayout';
 import { useNotificationList } from '@/hooks/useNotificationList';
 import { Button, EmptyState, ErrorState, LoadingSkeleton } from '@/components/ui'; 
-import { toast } from 'sonner';
-import apiClient from '@/lib/apiClient';
-import { useNotificationContext } from '@/context/NotificationContext';
 import { formatDistanceToNow } from 'date-fns';
 
 export default function NotificationsPage() {
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
-  const { refreshUnreadCount } = useNotificationContext();
-  const { 
+  const {
     notifications, 
     loading, 
     error,
@@ -79,28 +75,7 @@ export default function NotificationsPage() {
                 </button>
              </div>
              
-             <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={async () => {
-                    try {
-                        await apiClient.post('/notifications/trigger-test');
-                        toast.success('Test notification sent! Check the bell.');
-                        // Manually trigger refresh after a short delay to see it come in via polling or manual refresh
-                        setTimeout(() => {
-                             refresh();
-                             refreshUnreadCount();
-                        }, 500);
-                    } catch {
-                        toast.error('Failed to send test notification');
-                    }
-                }}
-                className="mr-2"
-             >
-                Test Bell
-             </Button>
-             
-             <Button 
+             <Button
                 variant="outline" 
                 size="sm" 
                 onClick={markAllAsRead}
