@@ -280,6 +280,7 @@ export interface ChatThread {
   id: string;
   is_group: boolean;
   group_name?: string | null;
+  created_by?: string | null;
   members: ChatThreadMember[];
   last_message_text?: string | null;
   last_message_created_at?: string | null;
@@ -292,6 +293,8 @@ export interface ChatThreadMember {
   first_name?: string | null;
   last_name?: string | null;
   email?: string | null;
+  role?: 'owner' | 'member' | string;
+  profile_photo_url?: string | null;
 }
 
 export interface ChatMessage {

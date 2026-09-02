@@ -107,6 +107,22 @@ class ConnectionManager:
             except Exception:
                 pass
 
+    async def kick_user_from_thread(self, thread_id: str, user_id: str) -> None:
+        """Close all of a user's sockets on a thread (e.g. after removal from a group)."""
+        async with self._lock:
+            websockets = [
+                ws
+                for ws in self.chat_connections.get(thread_id, set())
+                if self.chat_socket_user.get(ws) == user_id
+            ]
+
+        for ws in websockets:
+            try:
+                await ws.close(code=1000)
+            except Exception:
+                pass
+            await self.disconnect_chat(ws)
+
     async def broadcast_typing(
         self,
         thread_id: str,

@@ -10,12 +10,15 @@ class ChatThreadMemberResponse(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     email: Optional[str] = None
+    role: str = "member"
+    profile_photo_url: Optional[str] = None
 
 
 class ChatThreadResponse(BaseModel):
     id: UUID
     is_group: bool
     group_name: Optional[str] = None
+    created_by: Optional[UUID] = None
     created_at: datetime
     members: List[ChatThreadMemberResponse]
 
@@ -49,21 +52,46 @@ class CreateThreadRequest(BaseModel):
     def validate_group_requirements(self):
         unique_members = list(dict.fromkeys(self.member_ids))
         self.member_ids = unique_members
-        if self.is_group and (self.group_name is None or self.group_name.strip() == ""):
-            raise ValueError("group_name is required when is_group is true")
-        if not self.is_group and len(self.member_ids) != 1:
+        if self.is_group:
+            if self.group_name is None or self.group_name.strip() == "":
+                raise ValueError("group_name is required when is_group is true")
+            if len(self.member_ids) < 2:
+                raise ValueError("Group threads require at least two other members")
+        elif len(self.member_ids) != 1:
             raise ValueError("Direct threads require exactly one member_id")
+        return self
+
+
+class AddMembersRequest(BaseModel):
+    member_ids: List[UUID] = Field(..., min_length=1)
+
+    @model_validator(mode="after")
+    def dedupe_members(self):
+        self.member_ids = list(dict.fromkeys(self.member_ids))
+        return self
+
+
+class RenameThreadRequest(BaseModel):
+    group_name: str = Field(..., min_length=1, max_length=200)
+
+    @model_validator(mode="after")
+    def validate_not_blank(self):
+        if self.group_name.strip() == "":
+            raise ValueError("group_name cannot be blank")
+        self.group_name = self.group_name.strip()
         return self
 
 
 class CreateMessageRequest(BaseModel):
     message_text: Optional[str] = None
     message_type: str = "text"
+    file_id: Optional[UUID] = None
 
     @model_validator(mode="after")
     def validate_message_has_content(self):
-        if self.message_text is None or self.message_text.strip() == "":
-            raise ValueError("`message_text` is required")
+        has_text = self.message_text is not None and self.message_text.strip() != ""
+        if not has_text and self.file_id is None:
+            raise ValueError("A message requires `message_text` or `file_id`")
         if self.message_type.strip() == "":
             raise ValueError("`message_type` cannot be blank")
         return self

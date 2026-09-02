@@ -14,7 +14,9 @@ from app.models.chat_message import ChatMessage
 from app.models.chat_thread import ChatThread
 from app.models.chat_thread_member import ChatThreadMember
 from app.models.user import User
+from app.models.user_profile import UserProfile
 from app.schemas.chat import (
+    AddMembersRequest,
     ApprovalRequestCreate,
     ApprovalStatusPatch,
     ChatMessageListResponse,
@@ -24,10 +26,15 @@ from app.schemas.chat import (
     ChatThreadResponse,
     CreateMessageRequest,
     CreateThreadRequest,
+    RenameThreadRequest,
 )
 from app.utils.connection_manager import connection_manager
+from app.utils.hierarchy import get_assignable_user_ids
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
+
+ROLE_OWNER = "owner"
+ROLE_MEMBER = "member"
 
 
 def _get_user_from_token(db: Session, token: str) -> User | None:
@@ -43,16 +50,24 @@ def _get_user_from_token(db: Session, token: str) -> User | None:
     return user
 
 
-def _is_thread_member(db: Session, thread_id: UUID, user_id: UUID) -> bool:
-    membership = (
-        db.query(ChatThreadMember.id)
+def _get_membership(db: Session, thread_id: UUID, user_id: UUID) -> ChatThreadMember | None:
+    return (
+        db.query(ChatThreadMember)
         .filter(
             ChatThreadMember.thread_id == thread_id,
             ChatThreadMember.user_id == user_id,
         )
         .first()
     )
-    return membership is not None
+
+
+def _is_thread_member(db: Session, thread_id: UUID, user_id: UUID) -> bool:
+    return _get_membership(db, thread_id, user_id) is not None
+
+
+def _display_name(user: User) -> str:
+    named = f"{(user.first_name or '').strip()} {(user.last_name or '').strip()}".strip()
+    return named or (user.email or "Unknown user")
 
 
 def _serialize_chat_message(message: ChatMessage) -> dict:
@@ -69,10 +84,58 @@ def _serialize_chat_message(message: ChatMessage) -> dict:
     }
 
 
+def _message_response(message: ChatMessage) -> ChatMessageResponse:
+    return ChatMessageResponse(
+        id=message.id,
+        thread_id=message.thread_id,
+        sender_user_id=message.sender_user_id,
+        message_text=message.message_text,
+        file_id=message.file_id,
+        message_type=message.message_type or "text",
+        approval_status=message.approval_status,
+        is_read=message.is_read,
+        created_at=message.created_at,
+    )
+
+
+def _create_system_message(
+    db: Session, thread_id: UUID, actor_id: UUID, event: str, **data
+) -> ChatMessage:
+    """Insert a machine-readable system message (frontend translates the event).
+
+    Caller owns the transaction and the WebSocket broadcast.
+    """
+    message = ChatMessage(
+        thread_id=thread_id,
+        sender_user_id=actor_id,
+        message_text=json.dumps({"event": event, **data}),
+        message_type="system",
+        approval_status=None,
+        is_read=False,
+    )
+    db.add(message)
+    return message
+
+
+async def _broadcast_message(message: ChatMessage) -> None:
+    await connection_manager.broadcast_to_thread(
+        thread_id=str(message.thread_id),
+        payload={"type": "new_message", "message": _serialize_chat_message(message)},
+    )
+
+
 def _thread_members(db: Session, thread_id: UUID) -> list[ChatThreadMemberResponse]:
     rows = (
-        db.query(User.id, User.first_name, User.last_name, User.email)
+        db.query(
+            User.id,
+            User.first_name,
+            User.last_name,
+            User.email,
+            ChatThreadMember.role,
+            UserProfile.profile_photo_url,
+        )
         .join(ChatThreadMember, ChatThreadMember.user_id == User.id)
+        .outerjoin(UserProfile, UserProfile.user_id == User.id)
         .filter(ChatThreadMember.thread_id == thread_id)
         .order_by(User.first_name.asc(), User.last_name.asc())
         .all()
@@ -83,6 +146,8 @@ def _thread_members(db: Session, thread_id: UUID) -> list[ChatThreadMemberRespon
             first_name=row[1],
             last_name=row[2],
             email=row[3],
+            role=row[4] or ROLE_MEMBER,
+            profile_photo_url=row[5],
         )
         for row in rows
     ]
@@ -93,9 +158,47 @@ def _thread_response(db: Session, thread: ChatThread) -> ChatThreadResponse:
         id=thread.id,
         is_group=thread.is_group,
         group_name=thread.group_name,
+        created_by=thread.created_by,
         created_at=thread.created_at,
         members=_thread_members(db, thread.id),
     )
+
+
+def _get_group_thread_or_404(db: Session, thread_id: UUID) -> ChatThread:
+    thread = db.query(ChatThread).filter(ChatThread.id == thread_id).first()
+    if not thread:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thread not found")
+    if not thread.is_group:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This operation is only available for group threads",
+        )
+    return thread
+
+
+def _validate_participants(
+    db: Session, current_user: User, member_ids: set[UUID]
+) -> None:
+    """Participants must exist, be active, and share the caller's organization."""
+    if not member_ids:
+        return
+    assignable = set(get_assignable_user_ids(current_user, db))
+    if not member_ids.issubset(assignable):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only chat with members of your organization",
+        )
+    active_ids = {
+        row[0]
+        for row in db.query(User.id)
+        .filter(User.id.in_(list(member_ids)), User.is_active.is_(True))
+        .all()
+    }
+    if active_ids != member_ids:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="One or more members do not exist or are inactive",
+        )
 
 
 @router.post("/threads", response_model=ChatThreadResponse, status_code=status.HTTP_201_CREATED)
@@ -106,21 +209,17 @@ def create_thread(
 ):
     unique_member_ids = {member_id for member_id in payload.member_ids if member_id != current_user.id}
     if not payload.is_group and len(unique_member_ids) != 1:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Direct threads require exactly one other member")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Direct threads require exactly one other member",
+        )
+    if payload.is_group and len(unique_member_ids) < 2:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Group threads require at least two other members",
+        )
 
-    if payload.is_group and (payload.group_name is None or payload.group_name.strip() == ""):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="group_name is required for group threads")
-
-    requested_users = (
-        db.query(User.id)
-        .filter(User.id.in_(list(unique_member_ids)))
-        .all()
-        if unique_member_ids
-        else []
-    )
-    found_ids = {row[0] for row in requested_users}
-    if found_ids != unique_member_ids:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="One or more members do not exist")
+    _validate_participants(db, current_user, unique_member_ids)
 
     if not payload.is_group:
         other_user_id = next(iter(unique_member_ids))
@@ -138,10 +237,7 @@ def create_thread(
             if existing_thread:
                 return _thread_response(db, existing_thread)
 
-    member_ids = list(unique_member_ids | {current_user.id})
     thread = ChatThread(
-        user_one_id=min(member_ids),
-        user_two_id=max(member_ids),
         is_group=payload.is_group,
         group_name=payload.group_name.strip() if payload.group_name else None,
         created_by=current_user.id,
@@ -149,8 +245,9 @@ def create_thread(
     db.add(thread)
     db.flush()
 
-    for member_id in member_ids:
-        db.add(ChatThreadMember(thread_id=thread.id, user_id=member_id))
+    db.add(ChatThreadMember(thread_id=thread.id, user_id=current_user.id, role=ROLE_OWNER))
+    for member_id in unique_member_ids:
+        db.add(ChatThreadMember(thread_id=thread.id, user_id=member_id, role=ROLE_MEMBER))
 
     db.commit()
     db.refresh(thread)
@@ -172,6 +269,151 @@ def list_threads(
     return ChatThreadListResponse(threads=[_thread_response(db, thread) for thread in threads])
 
 
+@router.post(
+    "/threads/{thread_id}/members",
+    response_model=ChatThreadResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_thread_members(
+    thread_id: UUID,
+    payload: AddMembersRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if not _is_thread_member(db, thread_id, current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have access to this thread")
+
+    thread = _get_group_thread_or_404(db, thread_id)
+
+    new_member_ids = {member_id for member_id in payload.member_ids if member_id != current_user.id}
+    if not new_member_ids:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No members to add")
+
+    existing_ids = {
+        row[0]
+        for row in db.query(ChatThreadMember.user_id)
+        .filter(ChatThreadMember.thread_id == thread_id, ChatThreadMember.user_id.in_(list(new_member_ids)))
+        .all()
+    }
+    if existing_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="One or more users are already members of this group",
+        )
+
+    _validate_participants(db, current_user, new_member_ids)
+
+    added_users = db.query(User).filter(User.id.in_(list(new_member_ids))).all()
+    for member_id in new_member_ids:
+        db.add(ChatThreadMember(thread_id=thread_id, user_id=member_id, role=ROLE_MEMBER))
+
+    system_message = _create_system_message(
+        db,
+        thread_id,
+        current_user.id,
+        "member_added",
+        actor=_display_name(current_user),
+        targets=[_display_name(u) for u in added_users],
+    )
+    db.commit()
+    db.refresh(system_message)
+
+    await _broadcast_message(system_message)
+    return _thread_response(db, thread)
+
+
+@router.delete("/threads/{thread_id}/members/{user_id}", response_model=ChatThreadResponse)
+async def remove_thread_member(
+    thread_id: UUID,
+    user_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    actor_membership = _get_membership(db, thread_id, current_user.id)
+    if not actor_membership:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have access to this thread")
+
+    thread = _get_group_thread_or_404(db, thread_id)
+
+    is_self = user_id == current_user.id
+    if is_self:
+        target_membership = actor_membership
+    else:
+        if actor_membership.role != ROLE_OWNER:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the group owner can remove other members",
+            )
+        target_membership = _get_membership(db, thread_id, user_id)
+        if not target_membership:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User is not a member of this group")
+
+    member_count = (
+        db.query(sa.func.count(ChatThreadMember.id))
+        .filter(ChatThreadMember.thread_id == thread_id)
+        .scalar()
+    )
+    if is_self and actor_membership.role == ROLE_OWNER and member_count > 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The group owner cannot leave while other members remain",
+        )
+
+    target_user = db.query(User).filter(User.id == user_id).first()
+    db.delete(target_membership)
+
+    if is_self:
+        system_message = _create_system_message(
+            db, thread_id, current_user.id, "member_left",
+            actor=_display_name(current_user),
+        )
+    else:
+        system_message = _create_system_message(
+            db, thread_id, current_user.id, "member_removed",
+            actor=_display_name(current_user),
+            targets=[_display_name(target_user)] if target_user else [],
+        )
+    db.commit()
+    db.refresh(system_message)
+
+    await _broadcast_message(system_message)
+    await connection_manager.kick_user_from_thread(thread_id=str(thread_id), user_id=str(user_id))
+    return _thread_response(db, thread)
+
+
+@router.patch("/threads/{thread_id}", response_model=ChatThreadResponse)
+async def rename_thread(
+    thread_id: UUID,
+    payload: RenameThreadRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    membership = _get_membership(db, thread_id, current_user.id)
+    if not membership:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have access to this thread")
+    if membership.role != ROLE_OWNER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the group owner can rename the group",
+        )
+
+    thread = _get_group_thread_or_404(db, thread_id)
+    thread.group_name = payload.group_name
+
+    system_message = _create_system_message(
+        db, thread_id, current_user.id, "renamed",
+        actor=_display_name(current_user),
+        name=payload.group_name,
+    )
+    db.add(thread)
+    db.commit()
+    db.refresh(system_message)
+    db.refresh(thread)
+
+    await _broadcast_message(system_message)
+    return _thread_response(db, thread)
+
+
 @router.get("/threads/{thread_id}/messages", response_model=ChatMessageListResponse)
 def list_thread_messages(
     thread_id: UUID,
@@ -187,22 +429,7 @@ def list_thread_messages(
         .order_by(ChatMessage.created_at.asc())
         .all()
     )
-    return ChatMessageListResponse(
-        messages=[
-            ChatMessageResponse(
-                id=message.id,
-                thread_id=message.thread_id,
-                sender_user_id=message.sender_user_id,
-                message_text=message.message_text,
-                file_id=message.file_id,
-                message_type=message.message_type or "text",
-                approval_status=message.approval_status,
-                is_read=message.is_read,
-                created_at=message.created_at,
-            )
-            for message in messages
-        ]
-    )
+    return ChatMessageListResponse(messages=[_message_response(message) for message in messages])
 
 
 @router.post("/threads/{thread_id}/messages", response_model=ChatMessageResponse, status_code=status.HTTP_201_CREATED)
@@ -224,6 +451,7 @@ async def create_thread_message(
         sender_user_id=current_user.id,
         message_text=payload.message_text.strip() if payload.message_text else None,
         message_type=(payload.message_type or "text").strip() or "text",
+        file_id=payload.file_id,
         approval_status=None,
         is_read=False,
     )
@@ -231,22 +459,8 @@ async def create_thread_message(
     db.commit()
     db.refresh(message)
 
-    await connection_manager.broadcast_to_thread(
-        thread_id=str(thread_id),
-        payload={"type": "new_message", "message": _serialize_chat_message(message)},
-    )
-
-    return ChatMessageResponse(
-        id=message.id,
-        thread_id=message.thread_id,
-        sender_user_id=message.sender_user_id,
-        message_text=message.message_text,
-        file_id=message.file_id,
-        message_type=message.message_type or "text",
-        approval_status=message.approval_status,
-        is_read=message.is_read,
-        created_at=message.created_at,
-    )
+    await _broadcast_message(message)
+    return _message_response(message)
 
 
 @router.post("/threads/{thread_id}/approval-request", response_model=ChatMessageResponse, status_code=status.HTTP_201_CREATED)
@@ -275,22 +489,8 @@ async def create_approval_request(
     db.commit()
     db.refresh(message)
 
-    await connection_manager.broadcast_to_thread(
-        thread_id=str(thread_id),
-        payload={"type": "new_message", "message": _serialize_chat_message(message)},
-    )
-
-    return ChatMessageResponse(
-        id=message.id,
-        thread_id=message.thread_id,
-        sender_user_id=message.sender_user_id,
-        message_text=message.message_text,
-        file_id=message.file_id,
-        message_type=message.message_type,
-        approval_status=message.approval_status,
-        is_read=message.is_read,
-        created_at=message.created_at,
-    )
+    await _broadcast_message(message)
+    return _message_response(message)
 
 
 @router.patch("/messages/{message_id}/approval", response_model=ChatMessageResponse)
@@ -320,17 +520,7 @@ async def patch_approval_status(
         payload={"type": "message_updated", "message": _serialize_chat_message(message)},
     )
 
-    return ChatMessageResponse(
-        id=message.id,
-        thread_id=message.thread_id,
-        sender_user_id=message.sender_user_id,
-        message_text=message.message_text,
-        file_id=message.file_id,
-        message_type=message.message_type or "text",
-        approval_status=message.approval_status,
-        is_read=message.is_read,
-        created_at=message.created_at,
-    )
+    return _message_response(message)
 
 
 @router.websocket("/ws/chat/{thread_id}")
@@ -391,4 +581,3 @@ async def ws_chat(websocket: WebSocket, thread_id: str):
         except Exception:
             pass
         db.close()
-
