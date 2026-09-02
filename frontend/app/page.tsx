@@ -8,11 +8,19 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.location.pathname !== '/') return;
+    const pathname = window.location.pathname;
+    // Static hosts serve index.html for `/chat` (no trailing slash). Reload
+    // onto `/chat/` so the exported `chat/index.html` is used instead.
+    if (pathname !== '/') {
+      if (!pathname.endsWith('/')) {
+        window.location.replace(`${pathname}/${window.location.search}${window.location.hash}`);
+      }
+      return;
+    }
     if (isAuthenticated()) {
-      router.replace('/dashboard');
+      router.replace('/dashboard/');
     } else {
-      router.replace('/login');
+      router.replace('/login/');
     }
   }, [router]);
 
