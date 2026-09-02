@@ -1,5 +1,7 @@
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
@@ -44,9 +46,26 @@ from app.services.retention_jobs import start_retention_scheduler, stop_retentio
 from app.core.config import settings
 from app.core.rate_limit import limiter
 
+logger = logging.getLogger(__name__)
+
+
+def _upgrade_database() -> None:
+    """Apply pending Alembic migrations. Render does not run `alembic upgrade`
+    in the start command, so production would otherwise stay behind head.
+    """
+    from alembic import command
+    from alembic.config import Config
+
+    ini_path = Path(__file__).resolve().parent.parent / "alembic.ini"
+    alembic_cfg = Config(str(ini_path))
+    logger.info("Running alembic upgrade head (%s)", ini_path)
+    command.upgrade(alembic_cfg, "head")
+    logger.info("Database migrations are up to date")
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    _upgrade_database()
     start_daily_call_reminder_loop()
     start_retention_scheduler()
     try:

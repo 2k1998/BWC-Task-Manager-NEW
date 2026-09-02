@@ -1,0 +1,17 @@
+/chat /chat.html 200
+/tasks /tasks.html 200
+/dashboard /dashboard.html 200
+/notifications /notifications.html 200
+/profile /profile.html 200
+/contacts /contacts.html 200
+/companies /companies.html 200
+/projects /projects.html 200
+/cars /cars.html 200
+/analytics /analytics.html 200
+/documents /documents.html 200
+/payments /payments.html 200
+/events /events.html 200
+/approvals /approvals.html 200
+/login /login.html 200
+/admin/users /admin/users.html 200
+/admin/activity /admin/activity.html 200

@@ -8,10 +8,11 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.pathname !== '/') return;
     if (isAuthenticated()) {
-      router.push('/dashboard');
+      router.replace('/dashboard');
     } else {
-      router.push('/login');
+      router.replace('/login');
     }
   }, [router]);
 
