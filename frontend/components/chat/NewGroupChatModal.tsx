@@ -72,6 +72,7 @@ export default function NewGroupChatModal({ isOpen, onClose, currentUserId, onCr
         onClose();
       }}
       title={t('newGroup')}
+      panelClassName="shadow-xl max-w-2xl"
     >
       <div className="space-y-4">
         <div>
@@ -91,6 +92,7 @@ export default function NewGroupChatModal({ isOpen, onClose, currentUserId, onCr
             value={memberIds}
             onChange={setMemberIds}
             excludeIds={currentUserId ? [currentUserId] : []}
+            expanded
           />
           <p className="text-xs text-gray-500 mt-1">{t('groupMinimumHint')}</p>
         </div>

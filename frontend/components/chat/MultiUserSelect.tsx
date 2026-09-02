@@ -13,6 +13,8 @@ interface MultiUserSelectProps {
   excludeIds?: string[];
   placeholder?: string;
   disabled?: boolean;
+  /** In-flow list with extra height so more users are visible at once. */
+  expanded?: boolean;
 }
 
 export default function MultiUserSelect({
@@ -22,6 +24,7 @@ export default function MultiUserSelect({
   excludeIds = [],
   placeholder,
   disabled = false,
+  expanded = false,
 }: MultiUserSelectProps) {
   const t = useTranslations('Chat');
   const [query, setQuery] = useState('');
@@ -84,10 +87,18 @@ export default function MultiUserSelect({
         onFocus={() => setOpen(true)}
         disabled={disabled}
       />
-      {open && !disabled && (
+      {(expanded || open) && !disabled && (
         <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden />
-          <ul className="absolute z-20 mt-1 w-full max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl">
+          {!expanded && (
+            <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden />
+          )}
+          <ul
+            className={
+              expanded
+                ? 'mt-1 w-full max-h-[min(28rem,50vh)] overflow-y-auto bg-white border border-gray-200 rounded-lg'
+                : 'absolute z-20 mt-1 w-full max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl'
+            }
+          >
             {filtered.length === 0 ? (
               <li className="px-4 py-3 text-gray-500 text-sm">{t('noUsersFound')}</li>
             ) : (
@@ -95,7 +106,7 @@ export default function MultiUserSelect({
                 <li key={user.id}>
                   <button
                     type="button"
-                    className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center justify-between gap-2"
+                    className="w-full text-left px-4 py-2.5 hover:bg-gray-50 flex items-center justify-between gap-2"
                     onClick={() => {
                       onChange([...value, user.id]);
                       setQuery('');
