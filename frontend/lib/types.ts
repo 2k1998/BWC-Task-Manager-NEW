@@ -238,6 +238,8 @@ export interface Payment {
   payment_category?: string | null;
   payment_date: string;
   is_income: boolean;
+  income_source?: 'car_rental' | 'car_sale' | null;
+  car_id?: string | null;
   employee_user_id?: string | null;
   company_id: string;
   created_by_user_id: string;

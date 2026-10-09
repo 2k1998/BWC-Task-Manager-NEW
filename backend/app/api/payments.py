@@ -13,6 +13,7 @@ from sqlalchemy import func, or_
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_admin
 from app.models.payment import Payment
+from app.models.car import Car
 from app.models.company import Company
 from app.models.user import User
 from app.schemas.payment import (
@@ -43,6 +44,8 @@ def _payment_snapshot(payment: Payment) -> dict:
         "payment_category": payment.payment_category,
         "payment_date": payment.payment_date.isoformat(),
         "is_income": payment.is_income,
+        "income_source": payment.income_source,
+        "car_id": str(payment.car_id) if payment.car_id else None,
         "employee_user_id": str(payment.employee_user_id) if payment.employee_user_id else None,
         "company_id": str(payment.company_id),
         "created_by_user_id": str(payment.created_by_user_id),
@@ -52,6 +55,35 @@ def _payment_snapshot(payment: Payment) -> dict:
 def _require_payments_permission(db: Session, current_user: User) -> None:
     if not user_has_permission(current_user.id, "payments", "view", db):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have permission to access Payments")
+
+
+def _resolve_car_income(
+    *,
+    db: Session,
+    current_user: User,
+    is_income: bool,
+    income_source: Optional[str],
+    car_id: Optional[UUID],
+    previous_source: Optional[str] = None,
+    previous_car_id: Optional[UUID] = None,
+) -> tuple[Optional[str], Optional[UUID]]:
+    """Validate the final payment state, including partially supplied updates."""
+    if not is_income or income_source is None:
+        return None, None
+    if car_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A car is required for car rental or sale income",
+        )
+    if income_source != previous_source or car_id != previous_car_id:
+        if not user_has_permission(current_user.id, "cars", "view", db):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to link Cars to Payments",
+            )
+        if not db.query(Car).filter(Car.id == car_id).first():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Car not found")
+    return income_source, car_id
 
 
 def _build_payment_conditions(
@@ -104,6 +136,14 @@ def create_payment(
         if not employee:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee user not found")
 
+    income_source, car_id = _resolve_car_income(
+        db=db,
+        current_user=current_user,
+        is_income=payment_data.is_income,
+        income_source=payment_data.income_source,
+        car_id=payment_data.car_id,
+    )
+
     payment = Payment(
         title=payment_data.title,
         description=payment_data.description,
@@ -113,6 +153,8 @@ def create_payment(
         payment_category=payment_data.payment_category,
         payment_date=payment_data.payment_date,
         is_income=payment_data.is_income,
+        income_source=income_source,
+        car_id=car_id,
         employee_user_id=payment_data.employee_user_id,
         company_id=payment_data.company_id,
         created_by_user_id=current_user.id,
@@ -271,6 +313,18 @@ def update_payment(
     fields_set = getattr(payment_data, "model_fields_set", None) or set()
 
     try:
+        if "is_income" in fields_set and payment_data.is_income is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="is_income cannot be null")
+        income_source, car_id = _resolve_car_income(
+            db=db,
+            current_user=current_user,
+            is_income=payment_data.is_income if "is_income" in fields_set else payment.is_income,
+            income_source=payment_data.income_source if "income_source" in fields_set else payment.income_source,
+            car_id=payment_data.car_id if "car_id" in fields_set else payment.car_id,
+            previous_source=payment.income_source,
+            previous_car_id=payment.car_id,
+        )
+
         if "title" in fields_set:
             if payment_data.title is None:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="title cannot be null")
@@ -322,6 +376,9 @@ def update_payment(
             if not company:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Company not found")
             payment.company_id = payment_data.company_id
+
+        payment.income_source = income_source
+        payment.car_id = car_id
 
         db.flush()
         db.refresh(payment)

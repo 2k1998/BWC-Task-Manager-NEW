@@ -5,8 +5,10 @@ import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 
 import { useAuth } from '@/context/AuthContext';
+import { usePermissions } from '@/context/PermissionsContext';
+import { useHasPermission } from '@/hooks/useHasPermission';
 import apiClient from '@/lib/apiClient';
-import type { Company, Payment, User } from '@/lib/types';
+import type { Car, CarListResponse, Company, Payment, User } from '@/lib/types';
 
 import {
   Button,
@@ -72,6 +74,8 @@ export default function PaymentModal(props: PaymentModalProps) {
   const t = useTranslations('Payments');
   const { user } = useAuth();
   const isAdmin = user?.user_type === 'Admin';
+  const canViewCars = useHasPermission('cars', 'view');
+  const { isLoading: permissionsLoading } = usePermissions();
 
   const mode = props.mode;
   const payment = mode === 'edit' ? props.payment : null;
@@ -82,6 +86,9 @@ export default function PaymentModal(props: PaymentModalProps) {
 
   const [companies, setCompanies] = useState<Company[]>([]);
   const [employees, setEmployees] = useState<User[]>([]);
+  const [cars, setCars] = useState<Car[]>([]);
+  const [carsStatus, setCarsStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [carsRetry, setCarsRetry] = useState(0);
 
   const today = useMemo(() => new Date().toISOString().split('T')[0], []);
 
@@ -94,6 +101,8 @@ export default function PaymentModal(props: PaymentModalProps) {
     payment_category: '',
     payment_date: today,
     is_income: createDefaultIsIncome,
+    income_source: '' as '' | 'car_rental' | 'car_sale',
+    car_id: '',
     employee_user_id: '',
     company_id: '',
     notes: '',
@@ -143,14 +152,73 @@ export default function PaymentModal(props: PaymentModalProps) {
       payment_category: payment.payment_category ?? '',
       payment_date: payment.payment_date ? String(payment.payment_date) : today,
       is_income: !!payment.is_income,
+      income_source: payment.is_income ? (payment.income_source ?? '') : '',
+      car_id: payment.is_income && payment.income_source ? (payment.car_id ?? '') : '',
       employee_user_id: payment.employee_user_id ? String(payment.employee_user_id) : '',
       company_id: payment.company_id ? String(payment.company_id) : '',
     });
   }, [payment, today]);
 
+  const needsCar = formData.is_income && !!formData.income_source;
+
+  useEffect(() => {
+    if (!needsCar || !canViewCars || permissionsLoading) return;
+    const controller = new AbortController();
+    const loadCars = async () => {
+      setCarsStatus('loading');
+      setCars([]);
+      try {
+        const allCars: Car[] = [];
+        let page = 1;
+        let hasMore = true;
+        while (hasMore) {
+          const { data } = await apiClient.get<CarListResponse>('/cars', {
+            params: { page, page_size: 100 },
+            signal: controller.signal,
+          });
+          if (!Array.isArray(data.cars) || !Number.isFinite(data.total) ||
+              !data.page_size || data.page_size < 1) {
+            throw new Error('Invalid car list response');
+          }
+          allCars.push(...data.cars);
+          hasMore = page * data.page_size < data.total!;
+          if (hasMore && data.cars.length === 0) throw new Error('Incomplete car list');
+          page += 1;
+        }
+        if (!controller.signal.aborted) {
+          setCars([...new Map(allCars.map((car) => [car.id, car])).values()]);
+          setCarsStatus('ready');
+        }
+      } catch {
+        if (!controller.signal.aborted) {
+          setCars([]);
+          setCarsStatus('error');
+        }
+      }
+    };
+    void loadCars();
+    return () => controller.abort();
+  }, [needsCar, canViewCars, permissionsLoading, carsRetry]);
+
+  // The backend permits preserving an existing association when Cars access is revoked.
+  // New or changed associations still require a verified car from the loaded list.
+  const preservesSavedCar = !permissionsLoading && !canViewCars && !!payment?.is_income &&
+    !!payment.income_source && !!payment.car_id &&
+    formData.income_source === payment.income_source && formData.car_id === payment.car_id;
+  const selectedCarExists = cars.some((car) => car.id === formData.car_id);
+  const carOptions = cars.map((car) => ({
+    value: car.id,
+    label: `${car.license_plate} · ${car.make} ${car.model}`,
+  }));
+
+  if (preservesSavedCar) {
+    carOptions.push({ value: formData.car_id, label: `${t('incomeSavedCar')} (${formData.car_id})` });
+  }
+
   const canSubmit = useMemo(() => {
     const amount = parseFloat(formData.amount);
     return (
+      (!needsCar || preservesSavedCar || (!permissionsLoading && canViewCars && carsStatus === 'ready' && selectedCarExists)) &&
       formData.title.trim().length > 0 &&
       Number.isFinite(amount) &&
       amount > 0 &&
@@ -159,7 +227,7 @@ export default function PaymentModal(props: PaymentModalProps) {
       formData.payment_date.trim().length > 0 &&
       formData.currency.trim().length > 0
     );
-  }, [formData.amount, formData.company_id, formData.currency, formData.payment_date, formData.payment_type, formData.title]);
+  }, [formData.amount, formData.company_id, formData.currency, formData.payment_date, formData.payment_type, formData.title, needsCar, permissionsLoading, canViewCars, carsStatus, selectedCarExists, preservesSavedCar]);
 
   const companyOptions = useMemo(() => {
     const base = companies.map((c) => ({ value: c.id, label: c.name }));
@@ -215,6 +283,8 @@ export default function PaymentModal(props: PaymentModalProps) {
       payment_category: formData.payment_category.trim() ? formData.payment_category.trim() : null,
       payment_date: formData.payment_date,
       is_income: formData.is_income,
+      income_source: needsCar ? formData.income_source : null,
+      car_id: needsCar ? formData.car_id : null,
       employee_user_id: formData.employee_user_id ? formData.employee_user_id : null,
       company_id: formData.company_id,
     };
@@ -339,7 +409,8 @@ export default function PaymentModal(props: PaymentModalProps) {
             type="button"
             role="switch"
             aria-checked={formData.is_income}
-            onClick={() => setFormData((p) => ({ ...p, is_income: !p.is_income }))}
+            aria-label={t('isIncome')}
+            onClick={() => setFormData((p) => ({ ...p, is_income: !p.is_income, income_source: '', car_id: '' }))}
             className={[
               'relative inline-flex h-6 w-11 items-center rounded-full border transition-colors',
               formData.is_income ? 'bg-green-50 border-green-300' : 'bg-gray-50 border-gray-200',
@@ -353,6 +424,58 @@ export default function PaymentModal(props: PaymentModalProps) {
             />
           </button>
         </div>
+
+        {formData.is_income && (
+          <div className="space-y-3">
+            <Select
+              label={t('incomeSource')}
+              aria-label={t('incomeSource')}
+              value={formData.income_source}
+              onChange={(e) => setFormData((p) => ({
+                ...p,
+                income_source: e.target.value as typeof p.income_source,
+                car_id: e.target.value ? p.car_id : '',
+              }))}
+              options={[
+                { value: '', label: t('incomeSourceOther') },
+                { value: 'car_rental', label: t('incomeSourceRental') },
+                { value: 'car_sale', label: t('incomeSourceSale') },
+              ]}
+            />
+            {needsCar && (
+              <div>
+                <Select
+                  label={t('incomeCar')}
+                  aria-label={t('incomeCar')}
+                  aria-describedby="payment-car-status"
+                  value={selectedCarExists || preservesSavedCar ? formData.car_id : ''}
+                  onChange={(e) => setFormData((p) => ({ ...p, car_id: e.target.value }))}
+                  disabled={permissionsLoading || !canViewCars || carsStatus !== 'ready' || cars.length === 0}
+                  required
+                  options={[{ value: '', label: t('selectIncomeCar') }, ...carOptions]}
+                />
+                <div id="payment-car-status" className="mt-2 text-sm" aria-live="polite">
+                  {permissionsLoading || (canViewCars && (carsStatus === 'idle' || carsStatus === 'loading')) ? (
+                    <p className="text-gray-500">{t('incomeCarsLoading')}</p>
+                  ) : !canViewCars ? (
+                    <p className={preservesSavedCar ? 'text-gray-600' : 'text-red-700'}>{t(preservesSavedCar ? 'incomeCarsPreserved' : 'incomeCarsNoPermission')}</p>
+                  ) : carsStatus === 'error' ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-red-700">{t('incomeCarsError')}</p>
+                      <Button type="button" variant="secondary" size="sm" onClick={() => setCarsRetry((n) => n + 1)}>
+                        {t('retryIncomeCars')}
+                      </Button>
+                    </div>
+                  ) : cars.length === 0 ? (
+                    <p className="text-gray-600">{t('incomeCarsEmpty')}</p>
+                  ) : formData.car_id && !selectedCarExists ? (
+                    <p className="text-red-700">{t('incomeCarUnavailable')}</p>
+                  ) : null}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Select

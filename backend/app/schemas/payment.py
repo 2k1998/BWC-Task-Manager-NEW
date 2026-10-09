@@ -24,6 +24,9 @@ PaymentType = Literal[
 ]
 
 
+IncomeSource = Literal["car_rental", "car_sale"]
+
+
 class PaymentCreate(BaseModel):
     """Schema for creating a payment (admin or permitted creator)."""
 
@@ -35,6 +38,8 @@ class PaymentCreate(BaseModel):
     payment_category: Optional[str] = None
     payment_date: date
     is_income: bool = False
+    income_source: Optional[IncomeSource] = None
+    car_id: Optional[UUID] = None
     employee_user_id: Optional[UUID] = None
     company_id: UUID
 
@@ -58,6 +63,8 @@ class PaymentUpdate(BaseModel):
     payment_category: Optional[str] = None
     payment_date: Optional[date] = None
     is_income: Optional[bool] = None
+    income_source: Optional[IncomeSource] = None
+    car_id: Optional[UUID] = None
     employee_user_id: Optional[UUID] = None
     company_id: Optional[UUID] = None
 
@@ -83,6 +90,8 @@ class PaymentResponse(BaseModel):
     payment_category: Optional[str]
     payment_date: date
     is_income: bool
+    income_source: Optional[IncomeSource] = None
+    car_id: Optional[UUID] = None
     employee_user_id: Optional[UUID]
     company_id: UUID
     created_by_user_id: UUID

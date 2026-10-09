@@ -15,6 +15,7 @@ from app.models.car import Car
 from app.models.car_expense import CarExpense
 from app.models.car_income import CarIncome
 from app.models.car_maintenance import CarMaintenance
+from app.models.payment import Payment
 from app.models.user import User
 from app.utils.branch_filter import resolve_admin_branch_ids
 from app.schemas.car import (
@@ -223,7 +224,8 @@ def delete_car(
 
     has_income = db.query(CarIncome.id).filter(CarIncome.car_id == car_id).first() is not None
     has_expense = db.query(CarExpense.id).filter(CarExpense.car_id == car_id).first() is not None
-    if has_income or has_expense:
+    has_payment = db.query(Payment.id).filter(Payment.car_id == car_id).first() is not None
+    if has_income or has_expense or has_payment:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Car cannot be deleted because it has financial records",
