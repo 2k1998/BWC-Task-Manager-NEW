@@ -123,7 +123,7 @@ function EventsPageContent() {
             {events?.events.map((event) => (
               <div
                 key={event.id}
-                onClick={() => router.push(`/events/${event.id}`)}
+                onClick={() => router.push(`/events/detail/?id=${encodeURIComponent(event.id)}`)}
                 className="bg-white rounded-lg p-5 shadow-sm border border-gray-200 cursor-pointer hover:border-primary-gold transition-colors"
               >
                 <div className="flex items-start justify-between">
