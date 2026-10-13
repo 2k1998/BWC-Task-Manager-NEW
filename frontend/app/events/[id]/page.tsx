@@ -1,4 +1,4 @@
-import PageClient from "./page-client";
+import DetailPage from "../detail/page";
 
 // Static export requires at least one param; empty [] fails the build (Next.js #71862).
 export async function generateStaticParams() {
@@ -6,5 +6,5 @@ export async function generateStaticParams() {
 }
 
 export default function Page() {
-  return <PageClient />;
+  return <DetailPage />;
 }
