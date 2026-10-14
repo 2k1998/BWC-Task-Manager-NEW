@@ -1,0 +1,25 @@
+# Create a separate service from this blueprint. Existing app services are unchanged.
+services:
+  - type: web
+    name: bwc-mcp
+    runtime: python
+    plan: starter
+    rootDir: mcp_server
+    buildCommand: pip install .
+    startCommand: bwc-mcp-remote
+    healthCheckPath: /health
+    numInstances: 1
+    disk:
+      name: oauth-state
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: BWC_API_URL
+        sync: false
+      # The issuer defaults to Render's assigned RENDER_EXTERNAL_URL.
+      - key: BWC_MCP_DATABASE_PATH
+        value: /var/data/bwc-mcp/oauth.sqlite3
+      - key: BWC_MCP_ENCRYPTION_KEY
+        sync: false
