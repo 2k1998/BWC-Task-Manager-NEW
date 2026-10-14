@@ -63,6 +63,7 @@ export default function TaskDetailModal({
     description: '',
     status: '',
     urgency_label: '',
+    deadline: '',
   });
 
   const fetchTask = useCallback(async () => {
@@ -83,6 +84,7 @@ export default function TaskDetailModal({
         description: loaded.description || '',
         status: normalizeStatus(loaded.status),
         urgency_label: urgency,
+        deadline: (loaded.deadline || '').split('T')[0],
       });
       setIsEditing(false);
     } catch (err: unknown) {
@@ -178,20 +180,40 @@ export default function TaskDetailModal({
 
   const handleSave = async () => {
     if (!task || !taskId) return;
+    if (canEditMetadata) {
+      if (!draft.deadline) {
+        toast.error('Due date is required');
+        return;
+      }
+      const startDate = (task as Task & { start_date?: string }).start_date?.split('T')[0];
+      if (startDate && draft.deadline < startDate) {
+        toast.error('Deadline cannot be before start date');
+        return;
+      }
+    }
     try {
       setSaving(true);
       const metadataChanged =
         draft.title !== task.title ||
         draft.description !== (task.description ?? '') ||
-        draft.urgency_label !== urgencyLabel;
+        draft.urgency_label !== urgencyLabel ||
+        draft.deadline !== (task.deadline || '').split('T')[0];
       const statusChanged = draft.status !== normalizedStatus;
 
       if (metadataChanged && canEditMetadata) {
-        await apiClient.put(`/tasks/${taskId}`, {
-          title: draft.title.trim(),
-          description: draft.description || null,
-          urgency_label: draft.urgency_label,
-        });
+        const payload: {
+          title?: string;
+          description?: string | null;
+          urgency_label?: string;
+          deadline?: string;
+        } = {};
+        if (draft.title !== task.title) payload.title = draft.title.trim();
+        if (draft.description !== (task.description ?? '')) {
+          payload.description = draft.description || null;
+        }
+        if (draft.urgency_label !== urgencyLabel) payload.urgency_label = draft.urgency_label;
+        if (draft.deadline !== (task.deadline || '').split('T')[0]) payload.deadline = draft.deadline;
+        await apiClient.put(`/tasks/${taskId}`, payload);
       }
 
       if (statusChanged && canEditStatus) {
@@ -217,6 +239,7 @@ export default function TaskDetailModal({
       description: task.description || '',
       status: normalizedStatus,
       urgency_label: urgencyLabel,
+      deadline: (task.deadline || '').split('T')[0],
     });
     setIsEditing(false);
   };
@@ -387,10 +410,22 @@ export default function TaskDetailModal({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Due date</label>
-                  <div className={readOnlyBox}>
-                    {task.deadline ? new Date(task.deadline).toLocaleDateString() : '—'}
-                  </div>
+                  <label htmlFor="task-due-date" className="block text-sm font-medium text-gray-700 mb-1">Due date</label>
+                  {isEditing && canEditMetadata ? (
+                    <input
+                      id="task-due-date"
+                      type="date"
+                      required
+                      className={inputClass}
+                      value={draft.deadline}
+                      min={(task as Task & { start_date?: string }).start_date?.split('T')[0]}
+                      onChange={(e) => setDraft({ ...draft, deadline: e.target.value })}
+                    />
+                  ) : (
+                    <div className={readOnlyBox}>
+                      {task.deadline ? new Date(task.deadline).toLocaleDateString() : '—'}
+                    </div>
+                  )}
                 </div>
 
                 <div>

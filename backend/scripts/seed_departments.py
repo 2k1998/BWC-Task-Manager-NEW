@@ -28,6 +28,8 @@ def seed_departments():
             "Marketing/Κοινωνικά Δίκτυα",
             "Τηλεπικοινωνίες",
             "Cars",
+            "Operations",
+            "Εκπαίδευση",
         ]
         
         created_count = 0
