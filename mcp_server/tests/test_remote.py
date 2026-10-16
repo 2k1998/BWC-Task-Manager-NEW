@@ -48,6 +48,7 @@ async def test_discovery_unauthenticated_mcp_and_csrf_browser_binding(tmp_path, 
             assert 'resource_metadata=' in denied.headers['www-authenticate']
             client_id = await register(http)
             fields, login = await login_form(http, settings, client_id)
+            assert login.headers['referrer-policy'] == 'same-origin'
             assert 'synthetic-upstream' not in login.text
             cookie = login.headers.get('set-cookie', '').lower()
             assert 'httponly' in cookie and 'samesite=lax' in cookie
@@ -59,6 +60,10 @@ async def test_discovery_unauthenticated_mcp_and_csrf_browser_binding(tmp_path, 
             assert no_consent.status_code in (400, 403)
             foreign_origin = await http.post('/login', data=form, headers={'Origin': 'https://attacker.example.test'})
             assert foreign_origin.status_code == 403
+            assert foreign_origin.headers['referrer-policy'] == 'no-referrer'
+            null_origin = await http.post('/login', data=form, headers={'Origin': 'null'})
+            assert null_origin.status_code == 403
+            assert null_origin.headers['referrer-policy'] == 'no-referrer'
             assert not calls
             # The same hidden fields cannot be submitted from a different browser.
             async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url=settings.issuer_url) as outsider:
@@ -72,8 +77,9 @@ async def test_discovery_unauthenticated_mcp_and_csrf_browser_binding(tmp_path, 
             assert swapped.status_code in (400, 403)
             assert not calls
             http.cookies = saved_cookies
-            success = await http.post('/login', data=form)
+            success = await http.post('/login', data=form, headers={'Origin': settings.issuer_url})
             assert success.status_code in (302, 303), success.text
+            assert success.headers['referrer-policy'] == 'no-referrer'
             assert success.headers['location'].startswith(REDIRECT)
             query = parse_qs(urlsplit(success.headers['location']).query)
             assert query['state'] == ['synthetic-state'] and query['code']

@@ -148,7 +148,10 @@ def create_app(settings: HostedSettings, provider: OAuthProvider | None = None):
 <p><label><input type="checkbox" name="approve" value="yes" required> I authorize this client to act as my BWC account.</label></p>
 <button type="submit">Connect account</button></form>
 <p>Do not share your password with the agent. Close this page to cancel.</p></main></body></html>'''
-            response = HTMLResponse(page, headers=HEADERS)
+            # A native form POST under no-referrer sends Origin: null, which our
+            # origin check correctly rejects. Preserve the same-origin POST's
+            # Origin without disclosing the authorization URL to other origins.
+            response = HTMLResponse(page, headers={**HEADERS, 'Referrer-Policy': 'same-origin'})
             response.set_cookie('bwc_csrf', binding, max_age=600, httponly=True,
                                 secure=host.scheme == 'https', samesite='lax', path='/')
             return response
