@@ -1,5 +1,5 @@
 """Local MCP configuration; never import application settings or secrets."""
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import ipaddress
 import os
 from pathlib import Path
@@ -56,8 +56,9 @@ class HostedSettings:
     """OAuth deployment configuration, independent of local account sessions."""
     api_url: str
     issuer_url: str
-    database_path: Path
-    encryption_key: str
+    database_path: Path | None
+    encryption_key: str = field(repr=False)
+    database_url: str | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         from cryptography.fernet import Fernet
@@ -70,19 +71,41 @@ class HostedSettings:
             raise ValueError('BWC_MCP_ENCRYPTION_KEY must be a valid Fernet key') from None
         object.__setattr__(self, 'api_url', self.api_url.rstrip('/'))
         object.__setattr__(self, 'issuer_url', self.issuer_url.rstrip('/'))
-        object.__setattr__(self, 'database_path', Path(self.database_path).expanduser().absolute())
+        if self.database_url is not None:
+            try:
+                database = urlsplit(self.database_url)
+                if database.scheme not in {'postgres', 'postgresql', 'postgresql+psycopg2'} or not database.path.strip('/'):
+                    raise ValueError
+                database.port
+            except ValueError:
+                raise ValueError('BWC_MCP_DATABASE_URL must be a PostgreSQL connection URL') from None
+        elif self.database_path is None:
+            raise ValueError('An OAuth database URL or private SQLite path is required')
+        if self.database_path is not None:
+            object.__setattr__(self, 'database_path', Path(self.database_path).expanduser().absolute())
 
     @property
     def resource_url(self) -> str:
         return self.issuer_url + '/mcp'
 
     @classmethod
-    def from_env(cls) -> 'HostedSettings':
-        required = ('BWC_API_URL', 'BWC_MCP_ISSUER_URL', 'BWC_MCP_DATABASE_PATH', 'BWC_MCP_ENCRYPTION_KEY')
+    def from_env(cls, *, combined: bool = False) -> 'HostedSettings':
+        required = ('BWC_API_URL', 'BWC_MCP_ISSUER_URL', 'BWC_MCP_ENCRYPTION_KEY')
         values = {key: os.environ.get(key, '').strip() for key in required}
         values['BWC_MCP_ISSUER_URL'] = values['BWC_MCP_ISSUER_URL'] or os.environ.get('RENDER_EXTERNAL_URL', '').strip()
+        if combined and not values['BWC_API_URL']:
+            values['BWC_API_URL'] = 'http://127.0.0.1:' + os.environ.get('PORT', '8000')
+        database_url = os.environ.get('BWC_MCP_DATABASE_URL', '').strip()
+        if combined and not database_url:
+            database_url = os.environ.get('DATABASE_URL', '').strip()
+        database_path = os.environ.get('BWC_MCP_DATABASE_PATH', '').strip()
         missing = [key for key, value in values.items() if not value]
+        if combined and not database_url:
+            missing.append('BWC_MCP_DATABASE_URL or DATABASE_URL')
+        elif not database_url and not database_path:
+            missing.append('BWC_MCP_DATABASE_URL or BWC_MCP_DATABASE_PATH')
         if missing:
             raise ValueError('Missing deployment settings: ' + ', '.join(missing))
         return cls(values['BWC_API_URL'], values['BWC_MCP_ISSUER_URL'],
-                   Path(values['BWC_MCP_DATABASE_PATH']), values['BWC_MCP_ENCRYPTION_KEY'])
+                   Path(database_path) if database_path and not database_url else None, values['BWC_MCP_ENCRYPTION_KEY'],
+                   database_url=database_url or None)

@@ -10,6 +10,7 @@ requires-python = ">=3.11"
 dependencies = ["mcp==1.26.0", "httpx==0.28.1", "cryptography>=42,<51", "uvicorn>=0.30,<1"]
 
 [project.optional-dependencies]
+postgres = ["psycopg2-binary==2.9.10"]
 test = ["pytest>=8,<10", "pytest-asyncio>=0.24,<2"]
 
 [project.scripts]

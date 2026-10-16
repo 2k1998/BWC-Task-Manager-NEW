@@ -35,7 +35,8 @@ class OAuthProvider:
     """Single-process/single-worker provider with durable encrypted state."""
     def __init__(self, settings, *, http_client: httpx.AsyncClient | None = None):
         self.settings = settings
-        self.store = OAuthStore(settings.database_path, settings.encryption_key)
+        self.store = OAuthStore(settings.database_path, settings.encryption_key,
+                                database_url=getattr(settings, 'database_url', None))
         self._http = http_client or httpx.AsyncClient(timeout=30, follow_redirects=False)
         self._owns_http = http_client is None
         self._grant_locks: dict[str, asyncio.Lock] = {}

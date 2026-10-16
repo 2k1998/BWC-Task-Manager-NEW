@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from app.core.config import settings
 from app.core.database import Base
+from app.core.migration_filters import include_migration_name
 
 # Import all models so Alembic can detect them
 from app.models import (
@@ -74,6 +75,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_name=include_migration_name,
     )
 
     with context.begin_transaction():
@@ -95,7 +97,8 @@ def run_migrations_online() -> None:
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection, target_metadata=target_metadata,
+            include_name=include_migration_name,
         )
 
         with context.begin_transaction():

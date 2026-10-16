@@ -73,7 +73,7 @@ These are non-negotiable decisions. Do not re-implement, work around, or revert 
 - **FastAPI 0.115.6** + **Uvicorn 0.34.0**
 - **SQLAlchemy 2.0.36** (synchronous `Session` — NOT async)
 - **Alembic 1.14.0** for migrations
-- **Pydantic v2** (`pydantic==2.10.6`, `pydantic-settings==2.7.1`)
+- **Pydantic v2** (`pydantic==2.11.10`, `pydantic-settings==2.7.1`)
 - **passlib[bcrypt] 1.7.4** + **bcrypt==4.0.1** for password hashing
 - **python-jose[cryptography]** for JWT (HS256)
 - **APScheduler 3.10.4** for background jobs
@@ -91,7 +91,7 @@ These are non-negotiable decisions. Do not re-implement, work around, or revert 
 ### Pinned Versions (do not change without verification)
 - `bcrypt==4.0.1` — bcrypt 5.x breaks passlib 1.7.4 (login failures)
 - `email-validator==2.2.0` — must be explicit; pydantic v2 doesn't pull it
-- `pydantic==2.10.6` — pydantic-core binary wheels require Python <3.14
+- `pydantic==2.11.10` — required for the optional combined MCP runtime; verified with the backend regression suite. Use Python <3.14.
 - `psycopg2-binary==2.9.10` — use binary variant on Render
 - `groq==1.4.0` — Groq Python SDK
 

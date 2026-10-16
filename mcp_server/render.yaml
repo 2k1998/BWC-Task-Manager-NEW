@@ -1,4 +1,5 @@
-# Create a separate service from this blueprint. Existing app services are unchanged.
+# Optional standalone service. To reuse the paid backend without a second
+# service or disk, follow the combined deployment settings in README.md.
 services:
   - type: web
     name: bwc-mcp
